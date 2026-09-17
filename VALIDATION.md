@@ -42,3 +42,10 @@ The original preparation package's integrity checks remain supported. Its offlin
 - Verified the exhausted-starter scenario using a legal nine-action replay on the exact Pages build. Desktop and 390px mobile screenshots show the completion prompt. Clicking Finish running advances to Delivery and preserves coal 2, steam 1, work 0 and gears 1.
 - Pages build succeeds under `/clockwork-rivals/` with all machine and resource artwork loaded. Local and online server builds retain their existing root paths. The public static build exposes Practice and Pass & play.
 - All 24 existing rules/session tests still pass; this feedback change does not alter game rules or replay format.
+
+## Public deployment
+
+- Published source to `ivan-tretyakov/clockwork-rivals` on GitHub and the static build to the `gh-pages` branch. GitHub reports a successful Pages build with HTTPS enforced.
+- Opened https://ivan-tretyakov.github.io/clockwork-rivals/ in a fresh browser tab and visually checked the table and mode picker. Practice and Pass & play are available; the online-room limitation is explained in the picker.
+- Imported the exhausted-starter replay on the public site, visually confirmed the Finish running prompt beside the machines, then clicked it and verified Delivery began. All displayed images loaded, the desktop document had no horizontal overflow, and the fresh public tab reported no console errors or warnings.
+- Started a fresh Practice game after the live check. Multiplayer remains available through the supplied Node server, not GitHub Pages.
