@@ -1,6 +1,6 @@
 # Clockwork prototype implementation
 
-Rules remain version **0.1.0**. The prepared JSON and rules values are unchanged. Living Frontier is excluded.
+The prepared catalogue remains version **0.1.0** and its JSON is unchanged. Living Frontier is excluded. The September playtest adds a `produce` action: run every usable machine once, in deterministic grid order with dependency rescans, and end that player's production turn. This supersedes the brief's four manual activations in the current UI. Legacy `activate` actions retain their exact original behavior and limits so existing saves still replay and verify. The catalogue hash and save envelope remain compatible; older app builds cannot replay the new action.
 
 | Milestone | Delivered |
 |---|---|

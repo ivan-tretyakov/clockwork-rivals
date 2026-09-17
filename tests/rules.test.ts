@@ -5,6 +5,7 @@ import {
   reduce,
   legalActions,
   preview,
+  productionPlan,
   replay,
   saveGame,
   loadGame,
@@ -39,6 +40,125 @@ const phase = (s: State, p: State["phase"]) => {
   return s;
 };
 describe("Clockwork v0.1 acceptance scenarios", () => {
+  it("produces all nine machines once and advances after both workshops finish", () => {
+    const before = phase(fresh(), "run");
+    before.players.P0.grid = Array.from({ length: 9 }, (_, i) =>
+      card(["boiler", "piston", "press"][i % 3], `chain-${i}`),
+    );
+    before.players.P0.resources.coal = 3;
+    const plan = productionPlan(before, "P0");
+    expect(plan.steps).toHaveLength(9);
+    expect(plan.after).toEqual({ coal: 0, steam: 3, work: 0, gears: 3 });
+    const produced = play(before, { type: "produce" });
+    expect(produced.players.P0.resources).toEqual(plan.after);
+    expect(produced.players.P0.grid.every((c) => c?.exhausted)).toBe(true);
+    expect(produced.revision).toBe(before.revision + 1);
+    expect(produced.activePlayer).toBe("P1");
+    expect(produced.passed.P0).toBe(true);
+    expect(before.players.P0.grid.some((c) => c?.exhausted)).toBe(false);
+    const delivered = play(produced, { type: "produce" });
+    expect(delivered.phase).toBe("deliver");
+    expect(delivered.activePlayer).toBe("P0");
+    expect(delivered.players.P0.resources.gears).toBe(3);
+    expect(delivered.players.P1.resources.gears).toBe(1);
+  });
+  it("revisits blocked consumers after producers and applies passive bonuses and caps", () => {
+    const s = phase(fresh(), "run");
+    s.players.P0.grid = [
+      card("press"),
+      card("piston"),
+      null,
+      card("condenser"),
+      card("boiler"),
+      null,
+      null,
+      null,
+      null,
+    ];
+    const plan = productionPlan(s, "P0");
+    expect(plan.steps.map((step) => step.definitionId)).toEqual([
+      "boiler",
+      "piston",
+      "press",
+    ]);
+    expect(plan.after).toEqual({ coal: 0, steam: 2, work: 0, gears: 1 });
+    expect(play(s, { type: "produce" }).players.P0.resources).toEqual(
+      plan.after,
+    );
+    s.players.P0.grid = [
+      card("boiler"),
+      card("condenser"),
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+    s.players.P0.resources.steam = 7;
+    const capped = productionPlan(s, "P0");
+    expect(capped.steps[0].effect.overflow).toEqual({ steam: 2 });
+    expect(play(s, { type: "produce" }).players.P0.resources.steam).toBe(8);
+  });
+  it("skips exhausted or unfunded machines and finishes empty production without getting stuck", () => {
+    const s = phase(fresh(), "run");
+    s.players.P0.resources = { coal: 0, steam: 1, work: 0, gears: 0 };
+    s.players.P0.grid[4]!.exhausted = true;
+    const plan = productionPlan(s, "P0");
+    expect(plan.steps).toHaveLength(0);
+    expect(plan.skipped.map((c) => c.definitionId)).toEqual([
+      "boiler",
+      "press",
+    ]);
+    s.passed.P1 = true;
+    const after = play(s, { type: "produce" });
+    expect(after.phase).toBe("deliver");
+    expect(after.players.P0.resources).toEqual(s.players.P0.resources);
+    expect(reduce(fresh(), "P0", { type: "produce" }).ok).toBe(false);
+    expect(reduce(phase(fresh(), "run"), "P1", { type: "produce" }).ok).toBe(
+      false,
+    );
+  });
+  it("bounds recycler chains and previews every gear spent", () => {
+    const s = phase(fresh(), "run");
+    s.players.P0.grid[6] = card("recycler");
+    const plan = productionPlan(s, "P0");
+    expect(plan.steps.map((step) => step.definitionId)).toEqual([
+      "boiler",
+      "piston",
+      "press",
+      "recycler",
+    ]);
+    expect(plan.after).toEqual({ coal: 2, steam: 1, work: 0, gears: 0 });
+    expect(play(s, { type: "produce" }).players.P0.resources).toEqual(
+      plan.after,
+    );
+  });
+  it("replays and saves batch production before an exact-cost commission delivery", () => {
+    let s = fresh();
+    const actions: AcceptedAction[] = [];
+    while (s.round < 3) {
+      const action: Action =
+        s.phase === "run"
+          ? { type: "produce" }
+          : s.phase === "power"
+            ? { type: "take-coal", useValve: false }
+            : { type: "pass" };
+      actions.push({ actor: s.activePlayer!, action });
+      s = play(s, action);
+    }
+    expect(s.players.P0.resources.gears).toBe(2);
+    expect(loadGame(JSON.stringify(saveGame(s, actions))).state).toEqual(s);
+    expect(replay(s.seed, s.initialInitiative, actions)).toEqual(s);
+    s.phase = "deliver";
+    s.activePlayer = "P0";
+    s.orders = [{ id: "street", definitionId: "street-clock" }];
+    const after = play(s, { type: "deliver", commission: "street" });
+    expect(after.players.P0.resources.gears).toBe(0);
+    expect(after.players.P0.prestige).toBe(2);
+    expect(after.players.P0.delivered).toEqual(["street-clock"]);
+  });
   it("loads the documented round-three import fixture by replay", () => {
     const loaded = loadGame(JSON.stringify(fixture));
     expect(loaded.state.round).toBe(3);

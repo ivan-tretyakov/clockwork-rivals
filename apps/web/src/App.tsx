@@ -11,6 +11,7 @@ import {
   reduce,
   legalActions,
   preview,
+  productionPlan,
   other,
   position,
   replay,
@@ -38,10 +39,12 @@ const PHASE_COPY = {
     "Choose a part, then an empty workshop slot. Or rearrange one machine.",
   power:
     "Take coal from the shared supply. There are only three pieces to go around.",
-  run: "Run up to four machines, one at a time. Each machine runs once per round.",
+  run: "Choose Produce all to run every usable machine in sequence and finish production.",
   deliver:
-    "Spend gears on one shared commission. Unspent resources carry into the next round.",
+    "Deliver gears to one guild commission to earn prestige. Choose a delivery below, or keep your gears for next round.",
 };
+const phaseName = (phase: string) =>
+  phase === "run" ? "Produce" : phase === "deliver" ? "Delivery" : phase;
 const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
 const SAVE_KEY = "clockwork-local-v1";
 function initialGame() {
@@ -285,25 +288,41 @@ export default function App() {
   const runFinished =
     state.phase === "run" &&
     (state.passed[seat] || state.counts[seat] >= ALLOWANCE.run);
-  const unusedMachines = current.grid.filter(
-    (card) =>
-      card &&
-      !card.exhausted &&
-      PARTS[card.definitionId].effect.kind === "convert",
+  const production = state.phase === "run" ? productionPlan(state, seat) : null;
+  const deliveryFinished =
+    state.phase === "deliver" &&
+    (state.passed[seat] || state.counts[seat] >= ALLOWANCE.deliver);
+  const affordableOrders = state.orders.filter(
+    (card) => ORDERS[card.definitionId].gearCost <= current.resources.gears,
   );
-  const noMachinesCanRun =
-    state.status === "active" &&
-    state.phase === "run" &&
-    !runFinished &&
-    !unusedMachines.some((card) => preview(state, seat, card!.id)?.affordable);
-  const runEndReason = unusedMachines.length
-    ? "Your remaining machines need more resources."
-    : "All your machines have run this round.";
-  const rivalFinishedRunning =
-    state.passed[rival] || state.counts[rival] >= ALLOWANCE.run;
-  const runNextStep = rivalFinishedRunning
-    ? "Finish running to begin Delivery. Your resources carry over."
-    : "Finish running to end your Run phase. Delivery begins when your rival is also done. Your resources carry over.";
+  const cheapestOrder = state.orders.length
+    ? Math.min(
+        ...state.orders.map((card) => ORDERS[card.definitionId].gearCost),
+      )
+    : 0;
+  const lastProduction = state.log
+    .slice()
+    .reverse()
+    .find(
+      (event) =>
+        event.type === "produce" &&
+        event.actor === seat &&
+        event.round === state.round,
+    );
+  const lastDelivery = state.log
+    .slice()
+    .reverse()
+    .find((event) => event.type === "deliver" && event.round === state.round);
+  const workflowRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (
+      state.status === "active" &&
+      (state.phase === "run" || state.phase === "deliver")
+    ) {
+      workflowRef.current?.scrollIntoView({ block: "start" });
+      workflowRef.current?.focus({ preventScroll: true });
+    }
+  }, [state.phase, state.round, seat, state.status]);
   const close = () => setDialog(null);
   useEffect(() => {
     if (storageBlocked) return;
@@ -471,6 +490,15 @@ export default function App() {
       setMoving(null);
     }
   }
+  function confirmDelivery(id: string) {
+    const card = state.orders.find((order) => order.id === id)!;
+    const order = ORDERS[card.definitionId];
+    setConfirmation({
+      title: `Deliver ${order.name}?`,
+      text: `Pay ${order.gearCost} of your ${current.resources.gears} gears to fulfill ${order.name}. Earn ${order.prestige} prestige (${current.prestige} → ${current.prestige + order.prestige}). You keep ${current.resources.gears - order.gearCost} gears. This ends your Delivery turn.`,
+      action: { type: "deliver", commission: id },
+    });
+  }
   function grid(owner: Seat, small = false) {
     return (
       <div
@@ -495,7 +523,8 @@ export default function App() {
           const ready =
             card &&
             owner === seat &&
-            legal.some((a) => a.type === "activate" && a.instance === card.id);
+            !runFinished &&
+            production?.steps.some((step) => step.instance === card.id);
           const adjacent =
             selection?.kind === "machine" &&
             selection.seat === owner &&
@@ -534,7 +563,7 @@ export default function App() {
                           : card.boosted
                             ? "✓ Boost used"
                             : ready
-                              ? "● Ready to run"
+                              ? `● Sequence ${production!.steps.findIndex((step) => step.instance === card.id) + 1}`
                               : PARTS[card.definitionId].effect.kind ===
                                   "convert"
                                 ? "○ Ready"
@@ -745,7 +774,7 @@ export default function App() {
                 {PHASES.indexOf(state.phase) > i ? "✓" : `0${i + 1}`}
               </span>
               <div>
-                <b>{phase}</b>
+                <b>{phaseName(phase)}</b>
                 <span>
                   {
                     [
@@ -758,8 +787,9 @@ export default function App() {
                 </span>
               </div>
               <span className="phase-limit">
-                {ALLOWANCE[phase]}
-                {ALLOWANCE[phase] > 1 ? " actions" : " action"}
+                {phase === "run"
+                  ? "All machines"
+                  : `${ALLOWANCE[phase]} ${ALLOWANCE[phase] > 1 ? "actions" : "action"}`}
               </span>
             </div>
           ))}
@@ -774,21 +804,208 @@ export default function App() {
           </span>
           <span className="turn-instruction">
             {runFinished
-              ? "Your Run phase is finished. Waiting for your rival before Delivery."
-              : noMachinesCanRun && canPlay
-                ? `${runEndReason} Choose Finish running to continue.`
-                : PHASE_COPY[state.phase]}
+              ? "Production complete. Delivery starts automatically when your rival is done."
+              : PHASE_COPY[state.phase]}
           </span>
           <span className="turn-allowance">
-            {runFinished
-              ? "Run phase finished"
-              : noMachinesCanRun
-                ? "No machines left to run"
-                : state.status === "active" && connected
-                  ? `${remaining} / ${ALLOWANCE[state.phase]} actions left`
-                  : "First to 10 prestige"}
+            {state.phase === "run"
+              ? runFinished
+                ? "Production complete"
+                : "One click · all machines"
+              : state.status === "active" && connected
+                ? `${remaining} / ${ALLOWANCE[state.phase]} actions left`
+                : "First to 10 prestige"}
           </span>
         </div>
+        {state.status === "active" &&
+          (state.phase === "run" || state.phase === "deliver") && (
+            <section
+              className={`phase-workflow ${state.phase}`}
+              ref={workflowRef}
+              tabIndex={-1}
+              aria-label={
+                state.phase === "run" ? "Production" : "Delivery desk"
+              }
+            >
+              {state.phase === "run" && production ? (
+                <>
+                  <div className="workflow-heading">
+                    <div>
+                      <span className="step-label">
+                        <Owner seat={seat} /> 03 · PRODUCE ·{" "}
+                        {NAMES[seat].toUpperCase()} WORKSHOP
+                      </span>
+                      <h2>
+                        {runFinished
+                          ? "Production complete."
+                          : "Run your whole workshop."}
+                      </h2>
+                      <p>
+                        {runFinished
+                          ? "Waiting for your rival to produce. Delivery opens automatically."
+                          : "One click runs each usable machine once, using its output to power the next. Then your production turn ends."}
+                      </p>
+                    </div>
+                    {!runFinished && (
+                      <button
+                        className="button"
+                        disabled={!canPlay}
+                        onClick={() => act({ type: "produce" })}
+                      >
+                        {production.steps.length
+                          ? "Produce all →"
+                          : "Continue to Delivery →"}
+                      </button>
+                    )}
+                  </div>
+                  {!runFinished && (
+                    <>
+                      <ol
+                        className="production-sequence"
+                        aria-label="Production sequence"
+                      >
+                        {production.steps.map((step, index) => (
+                          <li key={step.instance}>
+                            <span className="sequence-number">{index + 1}</span>
+                            <img
+                              src={`${import.meta.env.BASE_URL}assets/clockwork-rivals/${step.definitionId}.webp`}
+                              alt=""
+                            />
+                            <span>
+                              <b>{PARTS[step.definitionId].name}</b>
+                              <small>
+                                Slot {Math.floor(step.slot / 3) + 1}·
+                                {(step.slot % 3) + 1}
+                              </small>
+                            </span>
+                            {index < production.steps.length - 1 && (
+                              <span className="sequence-arrow">→</span>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                      <div className="production-outcome">
+                        <span>Reserves after production</span>
+                        <ResourceRow values={production.after} />
+                      </div>
+                      <p className="workflow-note">
+                        {production.steps.length
+                          ? "Sequence follows grid order, returning to machines as their inputs become available. Passive bonuses apply automatically."
+                          : "No unused machine has the resources it needs. Your reserves carry over."}
+                        {production.skipped.length > 0 &&
+                          ` Waiting for resources: ${production.skipped.map((card) => PARTS[card.definitionId].name).join(", ")}.`}
+                      </p>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="workflow-heading">
+                    <div>
+                      <span className="step-label">
+                        <Owner seat={seat} /> 04 · DELIVERY ·{" "}
+                        {NAMES[seat].toUpperCase()} WORKSHOP
+                      </span>
+                      <h2>
+                        {deliveryFinished
+                          ? "Your delivery turn is complete."
+                          : "Turn your gears into prestige."}
+                      </h2>
+                      <p>
+                        {deliveryFinished
+                          ? "Waiting for your rival. The next round starts automatically."
+                          : "You deliver gears to the guild. Choose one commission below: pay its gear cost and earn the shown prestige."}
+                      </p>
+                    </div>
+                    <div className="delivery-balance">
+                      <Icon name="gears" />
+                      <strong>{current.resources.gears}</strong>
+                      <span>
+                        {current.resources.gears === 1 ? "gear" : "gears"}{" "}
+                        available
+                      </span>
+                    </div>
+                  </div>
+                  {lastProduction && (
+                    <p className="production-receipt">
+                      ✓ Production complete:{" "}
+                      {(lastProduction.data.sequence as string[])
+                        .map((id) => PARTS[id].name)
+                        .join(" → ") || "no machines could run"}
+                      .
+                    </p>
+                  )}
+                  {lastDelivery && (
+                    <p className="delivery-receipt" role="status">
+                      ✓ {lastDelivery.text}
+                    </p>
+                  )}
+                  {!deliveryFinished && (
+                    <>
+                      <p
+                        className={`delivery-guidance ${affordableOrders.length ? "ready" : ""}`}
+                      >
+                        {!state.orders.length
+                          ? "All commissions have been claimed. Keep your gears for the next round."
+                          : affordableOrders.length
+                            ? `${affordableOrders.length} ${affordableOrders.length === 1 ? "commission is" : "commissions are"} affordable. ${canPlay ? "Choose a Deliver button below." : "Wait for your Delivery turn to choose."}`
+                            : `You need ${cheapestOrder - current.resources.gears} more ${cheapestOrder - current.resources.gears === 1 ? "gear" : "gears"} for the cheapest commission (${cheapestOrder} gears). Keep your gears and produce more next round.`}
+                      </p>
+                      <div className="delivery-options">
+                        {state.orders.map((card) => {
+                          const order = ORDERS[card.definitionId];
+                          const missing = Math.max(
+                            0,
+                            order.gearCost - current.resources.gears,
+                          );
+                          return (
+                            <article
+                              key={card.id}
+                              className={`delivery-option ${!missing ? "affordable" : ""}`}
+                            >
+                              <CommissionArt id={card.definitionId} />
+                              <div>
+                                <h3>{order.name}</h3>
+                                <p>
+                                  <Icon name="gears" /> Pay {order.gearCost}{" "}
+                                  gears <span>→</span>{" "}
+                                  <strong>+{order.prestige} prestige</strong>
+                                </p>
+                              </div>
+                              <button
+                                className={`button ${missing ? "outline" : ""}`}
+                                disabled={!canPlay || missing > 0}
+                                onClick={() => confirmDelivery(card.id)}
+                              >
+                                {missing
+                                  ? `Need ${missing} more ${missing === 1 ? "gear" : "gears"}`
+                                  : `Deliver ${order.name} →`}
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                      <div className="delivery-footer">
+                        <p>
+                          Coal, steam, work and unspent gears all carry into the
+                          next round.
+                        </p>
+                        <button
+                          className={`button ${affordableOrders.length ? "outline" : ""}`}
+                          disabled={!canPlay}
+                          onClick={() => act({ type: "pass" })}
+                        >
+                          {affordableOrders.length
+                            ? "Save gears & end Delivery →"
+                            : "Keep gears & end Delivery →"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </section>
+          )}
         <div className="shared-table">
           <section className="market-section">
             <div className="section-heading">
@@ -841,61 +1058,61 @@ export default function App() {
             </div>
           </section>
           <section className="orders-section">
-            <div className="section-heading">
-              <h2>Guild commissions</h2>
-              <span>
-                <Icon name="prestige" />
-                Race to 10
-              </span>
-            </div>
-            <div className="orders-row">
-              {state.orders.map((card) => {
-                const order = ORDERS[card.definitionId];
-                const affordable = legal.some(
-                  (a) => a.type === "deliver" && a.commission === card.id,
-                );
-                return (
-                  <button
-                    className={`order-card ${affordable ? "affordable" : ""}`}
-                    key={card.id}
-                    data-testid="commission"
-                    onClick={() =>
-                      affordable
-                        ? setConfirmation({
-                            title: `Deliver ${order.name}?`,
-                            text: `Spend ${order.gearCost} gears to earn ${order.prestige} prestige. This is your only Delivery action this round. You will have ${current.resources.gears - order.gearCost} gears remaining.`,
-                            action: { type: "deliver", commission: card.id },
-                          })
-                        : setNotice(
-                            `${order.name}: spend ${order.gearCost} gears for ${order.prestige} prestige during your Delivery turn.`,
-                          )
-                    }
-                    aria-label={`${order.name}, ${order.gearCost} gears for ${order.prestige} prestige${affordable ? ", deliver" : ""}`}
-                  >
-                    <span className="order-points">
-                      {order.prestige}
-                      <Icon name="prestige" />
-                    </span>
-                    <CommissionArt id={card.definitionId} />
-                    <span className="order-title">{order.name}</span>
-                    <span className="order-cost">
-                      <Icon name="gears" />
-                      {order.gearCost} gears{" "}
-                      <span>{affordable ? "Deliver ↗" : "to deliver"}</span>
-                    </span>
-                  </button>
-                );
-              })}
-              {!state.orders.length && (
-                <p>
-                  {("orderDeckCount" in state
-                    ? state.orderDeckCount
-                    : state.orderDeck.length) > 0
-                    ? "New commissions arrive next round."
-                    : "All guild commissions have been claimed."}
-                </p>
-              )}
-            </div>
+            {state.phase !== "deliver" && (
+              <>
+                <div className="section-heading">
+                  <h2>Guild commissions</h2>
+                  <span>
+                    <Icon name="prestige" />
+                    Race to 10
+                  </span>
+                </div>
+                <div className="orders-row">
+                  {state.orders.map((card) => {
+                    const order = ORDERS[card.definitionId];
+                    const affordable = legal.some(
+                      (a) => a.type === "deliver" && a.commission === card.id,
+                    );
+                    return (
+                      <button
+                        className={`order-card ${affordable ? "affordable" : ""}`}
+                        key={card.id}
+                        data-testid="commission"
+                        onClick={() =>
+                          affordable
+                            ? confirmDelivery(card.id)
+                            : setNotice(
+                                `${order.name}: spend ${order.gearCost} gears for ${order.prestige} prestige during your Delivery turn.`,
+                              )
+                        }
+                        aria-label={`${order.name}, ${order.gearCost} gears for ${order.prestige} prestige${affordable ? ", deliver" : ""}`}
+                      >
+                        <span className="order-points">
+                          {order.prestige}
+                          <Icon name="prestige" />
+                        </span>
+                        <CommissionArt id={card.definitionId} />
+                        <span className="order-title">{order.name}</span>
+                        <span className="order-cost">
+                          <Icon name="gears" />
+                          {order.gearCost} gears{" "}
+                          <span>{affordable ? "Deliver ↗" : "to deliver"}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {!state.orders.length && (
+                    <p>
+                      {("orderDeckCount" in state
+                        ? state.orderDeckCount
+                        : state.orderDeck.length) > 0
+                        ? "New commissions arrive next round."
+                        : "All guild commissions have been claimed."}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
             <div className="coal-pool">
               <span className="coal-label">
                 <Icon name="coal" />
@@ -1046,32 +1263,13 @@ export default function App() {
                         {selection?.kind === "machine" &&
                           selection.seat === seat &&
                           state.phase === "run" && (
-                            <button
-                              className="button activate-button"
-                              disabled={
-                                !legal.some(
-                                  (a) =>
-                                    a.type === "activate" &&
-                                    a.instance === selectedCard.id,
-                                )
-                              }
-                              onClick={() =>
-                                act({
-                                  type: "activate",
-                                  instance: selectedCard.id,
-                                })
-                              }
-                            >
+                            <p className="subtle">
                               {selectedCard.exhausted
-                                ? "Already used this round"
+                                ? "Already produced this round."
                                 : inspected.effect.kind !== "convert"
-                                  ? "Passive machine"
-                                  : !effect?.affordable
-                                    ? "Need more resources"
-                                    : !canPlay
-                                      ? "Waiting for your turn"
-                                      : "Run this machine →"}
-                            </button>
+                                  ? "Passive bonus applied automatically."
+                                  : "Included automatically when you choose Produce all above, if its inputs are available."}
+                            </p>
                           )}
                         {selection?.kind === "machine" &&
                           selection.seat === seat &&
@@ -1112,7 +1310,7 @@ export default function App() {
                       </>
                     )}
                   </>
-                ) : noMachinesCanRun || runFinished ? null : (
+                ) : (
                   <div className="inspector-empty">
                     <span className="workbench-mark">⚒</span>
                     <h3>
@@ -1122,7 +1320,7 @@ export default function App() {
                     </h3>
                     <p>
                       {state.phase === "run"
-                        ? "Select a ready machine to preview its output, then run it. Start with your Boiler to make steam."
+                        ? "Use Produce all above to run your workshop. Select a machine here to inspect its recipe and adjacency bonuses."
                         : "Select a machine to inspect its conversion and discover how it fits into your engine."}
                     </p>
                     <div className="engine-chain">
@@ -1142,43 +1340,17 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                {(noMachinesCanRun || runFinished) && (
-                  <div className="phase-completion" role="status">
-                    <span className="step-label">NEXT STEP · DELIVERY</span>
-                    <h3>
-                      {runFinished
-                        ? "You’re done running."
-                        : "No more machines to run."}
-                    </h3>
-                    <p>
-                      {runFinished
-                        ? "Your rival is finishing their actions. Delivery will begin automatically when you’re both done."
-                        : canPlay
-                          ? `${runEndReason} ${runNextStep}`
-                          : `${runEndReason} Wait for your turn, then choose Finish running.`}
-                    </p>
-                    {noMachinesCanRun && (
-                      <button
-                        className="button full"
-                        disabled={!canPlay}
-                        onClick={() => act({ type: "pass" })}
-                      >
-                        Finish running <span>→</span>
-                      </button>
-                    )}
-                  </div>
-                )}
               </aside>
             </div>
             <div className="action-footer">
               <span>
-                {runFinished
-                  ? "Waiting for your rival, then Delivery begins."
-                  : canPlay
-                    ? noMachinesCanRun
-                      ? "Nothing left to run. Finish your Run phase to continue."
-                      : `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
-                    : turnLabel}
+                {state.phase === "run"
+                  ? "Use the production panel above to run your workshop."
+                  : state.phase === "deliver"
+                    ? "Choose a commission or keep your gears at the Delivery desk above."
+                    : canPlay
+                      ? `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
+                      : turnLabel}
               </span>
               <div>
                 {!online && (
@@ -1194,20 +1366,15 @@ export default function App() {
                     ↶ Undo
                   </button>
                 )}
-                <button
-                  className={`button ${noMachinesCanRun && canPlay ? "" : "outline"}`}
-                  disabled={!canPlay}
-                  onClick={() => act({ type: "pass" })}
-                >
-                  {state.phase === "run"
-                    ? runFinished
-                      ? "Run phase finished"
-                      : noMachinesCanRun
-                        ? "Finish running"
-                        : "Finish running early"
-                    : `Pass ${state.phase}`}{" "}
-                  <span>→</span>
-                </button>
+                {state.phase !== "run" && state.phase !== "deliver" && (
+                  <button
+                    className="button outline"
+                    disabled={!canPlay}
+                    onClick={() => act({ type: "pass" })}
+                  >
+                    Pass {state.phase} <span>→</span>
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -1385,10 +1552,11 @@ export default function App() {
               <article key={p}>
                 <span className="rule-number">0{i + 1}</span>
                 <h3>
-                  {p}{" "}
+                  {phaseName(p)}{" "}
                   <small>
-                    {ALLOWANCE[p]} {ALLOWANCE[p] === 1 ? "action" : "actions"}{" "}
-                    each
+                    {p === "run"
+                      ? "all usable machines once"
+                      : `${ALLOWANCE[p]} ${ALLOWANCE[p] === 1 ? "action" : "actions"} each`}
                   </small>
                 </h3>
                 <p>{PHASE_COPY[p]}</p>
@@ -1407,9 +1575,11 @@ export default function App() {
                 )}
                 {p === "run" && (
                   <p>
-                    Pay the full cost before gaining output. Only side-sharing
-                    neighbors count for bonuses. Passive parts do not use an
-                    action.
+                    Machines run in grid order as their inputs become available.
+                    Each runs once, with no four-machine limit. The preview
+                    shows the exact sequence and final reserves, including any
+                    gear spent by a Recycler. Only side-sharing neighbors count
+                    for bonuses. Delivery begins after both workshops produce.
                   </p>
                 )}
                 {p === "deliver" && (

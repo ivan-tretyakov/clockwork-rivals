@@ -13,6 +13,7 @@ export type ClockworkAction =
   | { type: 'reconfigure'; from: GridSlot; to: GridSlot }
   | { type: 'take-coal'; useValve: boolean }
   | { type: 'activate'; instance: InstanceId }
+  | { type: 'produce' }
   | { type: 'deliver'; commission: InstanceId }
   | { type: 'pass' }
   | { type: 'concede' };

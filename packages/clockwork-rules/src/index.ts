@@ -296,6 +296,49 @@ export function preview(
     affordable: RESOURCES.every((r) => p.resources[r] >= (input[r] ?? 0)),
   };
 }
+export interface ProductionStep {
+  instance: string;
+  definitionId: string;
+  slot: number;
+  effect: Preview;
+}
+// Resolve the first affordable unused machine in grid order, then scan again.
+// This revisits consumers that were waiting for output from a later producer.
+// Exhaustion bounds the sequence to nine machines, including recycling loops.
+export function productionPlan(state: View, actor: PlayerId) {
+  const working = structuredClone(state);
+  const player = working.players[actor];
+  const steps: ProductionStep[] = [];
+  while (true) {
+    const index = player.grid.findIndex(
+      (card) =>
+        card && !card.exhausted && preview(working, actor, card.id)?.affordable,
+    );
+    if (index < 0) break;
+    const card = player.grid[index]!;
+    const effect = preview(working, actor, card.id)!;
+    steps.push({
+      instance: card.id,
+      definitionId: card.definitionId,
+      slot: index,
+      effect,
+    });
+    player.resources = effect.after;
+    card.exhausted = true;
+    if (effect.condenser !== null)
+      player.grid[effect.condenser]!.boosted = true;
+  }
+  return {
+    steps,
+    after: player.resources,
+    skipped: player.grid.filter(
+      (card): card is Card =>
+        !!card &&
+        !card.exhausted &&
+        PARTS[card.definitionId].effect.kind === "convert",
+    ),
+  };
+}
 export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
   if (state.status !== "active" || state.activePlayer !== actor) return [];
   const p = state.players[actor];
@@ -329,6 +372,8 @@ export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
     )
       actions.push({ type: "take-coal", useValve: true });
   } else if (state.phase === "run") {
+    actions.push({ type: "produce" });
+    // Retained for exact replay of existing saves; the table uses Produce all.
     for (const c of p.grid)
       if (c && !c.exhausted && preview(state, actor, c.id)?.affordable)
         actions.push({ type: "activate", instance: c.id });
@@ -416,6 +461,26 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     RESOURCES.filter((r) => v[r])
       .map((r) => `${v[r]} ${r}`)
       .join(", ");
+  const activate = (instance: string) => {
+    const effect = preview(s, actor, instance)!;
+    const card = p.grid.find((c) => c?.id === instance)!;
+    for (const r of RESOURCES)
+      p.resources[r] += (effect.output[r] ?? 0) - (effect.input[r] ?? 0);
+    card.exhausted = true;
+    if (effect.condenser !== null) p.grid[effect.condenser]!.boosted = true;
+    event(
+      "activate",
+      `${names[actor]} runs ${PARTS[card.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
+      {
+        instance: card.id,
+        input: effect.input,
+        output: effect.output,
+        adjacent: effect.adjacent,
+      },
+      actor,
+    );
+    clamp();
+  };
   switch (action.type) {
     case "concede":
       s.status = "finished";
@@ -474,24 +539,25 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       break;
     }
     case "activate": {
-      const effect = preview(s, actor, action.instance)!;
-      const card = p.grid.find((c) => c?.id === action.instance)!;
-      for (const r of RESOURCES)
-        p.resources[r] += (effect.output[r] ?? 0) - (effect.input[r] ?? 0);
-      card.exhausted = true;
-      if (effect.condenser !== null) p.grid[effect.condenser]!.boosted = true;
+      activate(action.instance);
+      break;
+    }
+    case "produce": {
+      const plan = productionPlan(s, actor);
+      const before = { ...p.resources };
+      for (const step of plan.steps) activate(step.instance);
+      s.passed[actor] = true;
       event(
-        "activate",
-        `${names[actor]} runs ${PARTS[card.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
+        "produce",
+        `${names[actor]} finishes production: ${plan.steps.length} machines ran, ${p.resources.gears} gears ready for Delivery.`,
         {
-          instance: card.id,
-          input: effect.input,
-          output: effect.output,
-          adjacent: effect.adjacent,
+          sequence: plan.steps.map((step) => step.definitionId),
+          before,
+          after: { ...p.resources },
+          skipped: plan.skipped.map((card) => card.id),
         },
         actor,
       );
-      clamp();
       break;
     }
     case "deliver": {
@@ -643,6 +709,7 @@ export function chooseBotAction(s: View): ClockworkAction {
   const p = s.players[seat];
   const actions = legalActions(s, seat);
   const value = (a: ClockworkAction) => {
+    if (a.type === "produce") return 1000;
     if (a.type === "pass") return -100;
     if (a.type === "reconfigure") return -50;
     if (a.type === "take-coal") return a.useValve ? 20 : 10;

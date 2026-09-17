@@ -6,7 +6,9 @@ Clockwork Rivals is implemented from the prepared v0.1 brief. Play locally again
 
 Play at **https://ivan-tretyakov.github.io/clockwork-rivals/**. The GitHub Pages version supports Practice and Pass & play, including autosave, import/export, undo and rematches. Private online rooms require the Node server described below and are unavailable on this static site.
 
-When no machine can run, the table explains why and highlights **Finish running**. Clicking it ends your Run phase; Delivery begins when both players are done. **Finish running early** is available while you still have usable machines.
+**Produce all** runs every usable machine once in the previewed sequence and ends your production turn. Delivery opens automatically after both workshops produce. Machines follow grid order, revisiting blocked consumers when their inputs become available; passive bonuses apply automatically. This playtest update replaces the original four-activation UI with one production action.
+
+At the **Delivery desk**, spend gears on one commission to earn prestige. Each card shows its cost, reward, and either a **Deliver** button or the number of missing gears. If you cannot afford a commission, choose **Keep gears & end Delivery** and build up your reserves next round.
 
 ## Run the game
 
@@ -19,7 +21,7 @@ npm run dev
 
 Open **http://localhost:5173**. The browser app runs on port 5173 and the room server on 2567. Choose **New game** for Practice, Pass & play, or Private online room. A practice game starts immediately on first visit. The Automaton is a simple heuristic practice opponent.
 
-Draft a part and click a marked slot. In Power, take coal. In Run, click a machine, review its output, and click **Run this machine**. In Deliver, click an affordable commission and confirm payment. Players alternate actions; phases advance automatically. The in-game field guide and catalogue explain every rule and card.
+Draft a part and click a marked slot. In Power, take coal. In Produce, review the sequence and final reserves, then click **Produce all**. In Delivery, choose a commission and confirm payment, or keep your gears. Players alternate turns; phases advance automatically. The in-game field guide and catalogue explain the rules and cards.
 
 Local games autosave with a verified action replay. The Game menu provides save export/import, the catalogue, sound, and concession. Undo works locally; in Practice it rewinds to before your previous action. Online tables use private reconnect credentials stored in the original browser. Share the invite with a different browser/device; the same browser profile retains its own claimed seat.
 
