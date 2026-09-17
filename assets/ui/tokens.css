@@ -1,0 +1,6 @@
+:root {
+  --paper: #fff8e8; --ink: #203640; --forest: #204b3e;
+  --brass: #b37a3f; --teal-player: #147a80; --coral-player: #c9644d;
+  --meadow: #dce3ad; --wetland: #bfded5; --woodland: #ccdbc2;
+  --card-radius: 12px; --touch-target: 44px;
+}
