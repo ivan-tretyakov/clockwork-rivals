@@ -15,7 +15,6 @@ import {
   project,
   publicReport,
   OBJECTIVES,
-  DEFAULT_CONFIG,
   canAfford,
   missingCost,
   costText,
@@ -62,6 +61,9 @@ function initialGame() {
   let warning = "";
   try {
     const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw && localStorage.getItem("clockwork-local-v1"))
+      warning =
+        "Rules 0.2 starts a new match with private objectives. Your earlier 0.1 autosave remains preserved in this browser; old save files cannot be loaded into these rules.";
     if (raw) {
       const data = JSON.parse(raw);
       const saved = loadGame(JSON.stringify(data.save));
@@ -197,11 +199,13 @@ function Modal({
   children,
   close,
   wide = false,
+  dismissible = true,
 }: {
   title: string;
   children: React.ReactNode;
   close: () => void;
   wide?: boolean;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -227,13 +231,15 @@ function Modal({
     >
       <div className="modal-head">
         <h2>{title}</h2>
-        <button
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={close}
-        >
-          ×
-        </button>
+        {dismissible && (
+          <button
+            className="icon-button"
+            aria-label="Close dialog"
+            onClick={close}
+          >
+            ×
+          </button>
+        )}
       </div>
       {children}
     </dialog>
@@ -259,11 +265,12 @@ export default function App() {
   const [objectiveOpen, setObjectiveOpen] = useState(false);
   const [privacySeat, setPrivacySeat] = useState<Seat | null>(null);
   const [newConfig, setNewConfig] = useState<PlaytestConfig>({
-    ...DEFAULT_CONFIG,
+    ...initial.state.config,
   });
   const handoffRequired =
     !online &&
     mode === "hotseat" &&
+    state.config.objectives !== "off" &&
     state.status === "active" &&
     privacySeat !== seat;
   useEffect(() => {
@@ -284,7 +291,9 @@ export default function App() {
     action: Action;
   } | null>(null);
   const [notice, setNotice] = useState(initial.warning);
-  const [storageBlocked, setStorageBlocked] = useState(!!initial.warning);
+  const [storageBlocked, setStorageBlocked] = useState(
+    initial.warning.startsWith("Saved game could not"),
+  );
   const [sound, setSound] = useState(false);
   const soundContext = useRef<AudioContext | null>(null);
   const [newMode, setNewMode] = useState<Mode | "online">("practice");
@@ -510,6 +519,10 @@ export default function App() {
       setLocal(saved.state);
       setActions(saved.actions);
       setMode("hotseat");
+      setNewConfig(saved.config);
+      setPrivacySeat(null);
+      setObjectiveOpen(false);
+      setFinishedDismissed(false);
       setStorageBlocked(false);
       close();
       setNotice("Save imported and replay verified.");
@@ -875,13 +888,15 @@ export default function App() {
                 : PHASE_COPY[state.phase]}
           </span>
           <span className="turn-allowance">
-            {state.phase === "run"
-              ? runFinished
-                ? "Production complete"
-                : "One click · all machines"
-              : state.status === "active" && connected
-                ? `${remaining} / ${ALLOWANCE[state.phase]} actions left`
-                : "First to 10 prestige"}
+            {!state.setupComplete
+              ? "Choose one private objective"
+              : state.phase === "run"
+                ? runFinished
+                  ? "Production complete"
+                  : "One click · all machines"
+                : state.status === "active" && connected
+                  ? `${remaining} / ${ALLOWANCE[state.phase]} actions left`
+                  : "Final prestige includes objectives"}
           </span>
         </div>
         {state.status === "active" &&
@@ -1127,11 +1142,7 @@ export default function App() {
             </div>
             <button
               className="button outline"
-              disabled={
-                handoffRequired ||
-                (!state.setupComplete &&
-                  (!canPlay || state.objectiveReady[seat]))
-              }
+              disabled={handoffRequired}
               onClick={() => setObjectiveOpen(true)}
             >
               {state.objectiveReady[seat]
@@ -1177,7 +1188,7 @@ export default function App() {
                   </span>
                   <Formula id={card.definitionId} />
                   <span className="market-footer">
-                    {state.phase === "draft" && canPlay
+                    {state.phase === "draft" && state.setupComplete && canPlay
                       ? "Select to install"
                       : "Inspect machine"}
                   </span>
@@ -1479,13 +1490,15 @@ export default function App() {
             </div>
             <div className="action-footer">
               <span>
-                {state.phase === "run"
-                  ? "Use the production panel above to run your workshop."
-                  : state.phase === "deliver"
-                    ? "Choose a commission or keep your reserves at the Delivery desk above."
-                    : canPlay
-                      ? `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
-                      : turnLabel}
+                {!state.setupComplete
+                  ? "Choose your private objective before Draft."
+                  : state.phase === "run"
+                    ? "Use the production panel above to run your workshop."
+                    : state.phase === "deliver"
+                      ? "Choose a commission or keep your reserves at the Delivery desk above."
+                      : canPlay
+                        ? `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
+                        : turnLabel}
               </span>
               <div>
                 {!online && (
@@ -1535,6 +1548,20 @@ export default function App() {
                 </span>
               </div>
               <ResourceRow values={opponent.resources} />
+              {state.config.objectives !== "off" &&
+                state.status !== "finished" && (
+                  <div className="rival-secret">
+                    <span aria-hidden="true">◇</span>
+                    <div>
+                      Private objective
+                      <small>
+                        {state.objectiveReady[rival]
+                          ? "Card locked · revealed at match end"
+                          : "Choosing privately"}
+                      </small>
+                    </div>
+                  </div>
+                )}
               <button
                 className="rival-toggle"
                 onClick={() => setShowRival(!showRival)}
@@ -1591,8 +1618,9 @@ export default function App() {
           </span>
           <span>
             {state.config.targetPrestige} public prestige ·{" "}
-            {state.config.maxRounds} rounds · +{state.config.objectiveBonus}{" "}
-            private objective
+            {state.config.maxRounds} rounds
+            {state.config.objectives !== "off" &&
+              ` · +${state.config.objectiveBonus} private objective`}
           </span>
           <div>
             <button onClick={() => setDialog("feedback")}>
@@ -1603,7 +1631,11 @@ export default function App() {
         </footer>
       </main>
       {handoffRequired && (
-        <Modal title={`Pass the screen to ${NAMES[seat]}`} close={() => {}}>
+        <Modal
+          title={`Pass the screen to ${NAMES[seat]}`}
+          close={() => {}}
+          dismissible={false}
+        >
           <div className="privacy-screen">
             <span aria-hidden="true">◇</span>
             <p>
@@ -1655,7 +1687,7 @@ export default function App() {
                 [
                   "hotseat",
                   "Pass & play",
-                  "Two clockmakers, one screen. All information is public.",
+                  "Two clockmakers, one screen. Private cards use a handoff screen.",
                 ],
                 [
                   "online",
@@ -1688,6 +1720,7 @@ export default function App() {
             <label className="field-label">
               Private objectives
               <select
+                aria-label="Private objectives"
                 value={newConfig.objectives}
                 onChange={(e) =>
                   setNewConfig({
@@ -1704,6 +1737,7 @@ export default function App() {
             <label className="field-label">
               Commissions
               <select
+                aria-label="Commissions"
                 value={newConfig.commissions}
                 onChange={(e) =>
                   setNewConfig({
@@ -1971,7 +2005,7 @@ export default function App() {
               rows={6}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="A satisfying combination, a confusing moment, a part you never wanted…"
+              placeholder="Which decision did your objective change? Did editing production priorities help? When did your combo become useful? Any fuel shortages, idle machines, confusing moments, or desire for a rematch?"
             />
           </label>
           <button
@@ -1999,8 +2033,9 @@ export default function App() {
       {exported && (
         <Modal title="Your export is ready" close={() => setExported(null)}>
           <p className="modal-intro">
-            Save this file to keep your replay or notes. You can also copy its
-            contents as a backup.
+            Save this public report or your playtest notes. Private cards are
+            excluded. Public reports cannot restore a game; your local match
+            resumes from browser autosave.
           </p>
           <label className="field-label">
             {exported.name}
@@ -2124,11 +2159,19 @@ export default function App() {
                   <strong>
                     {state.finalScores?.[p] ?? state.players[p].prestige}
                   </strong>
-                  <span>
-                    {state.players[p].prestige} public +{" "}
-                    {state.revealedObjectives?.[p].bonus ?? 0} objective ·{" "}
-                    {state.players[p].resources.gears} gears
-                  </span>
+                  <div className="score-breakdown">
+                    <span>{state.players[p].prestige} public prestige</span>
+                    <span>
+                      + {state.revealedObjectives?.[p].bonus ?? 0} objective
+                    </span>
+                    <b>
+                      = {state.finalScores?.[p] ?? state.players[p].prestige}{" "}
+                      final prestige
+                    </b>
+                    <small>
+                      {state.players[p].resources.gears} unspent gears
+                    </small>
+                  </div>
                 </div>
               ))}
             </div>

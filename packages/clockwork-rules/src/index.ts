@@ -104,7 +104,9 @@ export const missingCost = (resources: Reserve, cost: Amounts): Amounts =>
   );
 export const costText = (amounts: Amounts) =>
   RESOURCES.filter((r) => amounts[r])
-    .map((r) => `${amounts[r]} ${r}`)
+    .map(
+      (r) => `${amounts[r]} ${r === "gears" && amounts[r] === 1 ? "gear" : r}`,
+    )
     .join(" + ");
 export const LIMITS = catalogue.limits;
 export const ALLOWANCE: Record<Phase, number> = {

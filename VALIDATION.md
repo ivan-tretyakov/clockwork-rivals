@@ -1,6 +1,25 @@
 # Clockwork Rivals validation
 
-Checked locally on 17 September 2026. Rules version 0.1.0. Living Frontier remains unimplemented and unchanged.
+## Current iteration: rules 0.2.0
+
+Checked locally on 17 September 2026. Living Frontier remains unimplemented and unchanged. The earlier evidence below is retained as historical coverage, not a claim that old saves or the four-activation rule remain compatible.
+
+- `npm test`: **50 tests passed**, including 20 historical v0.1 regressions and 30 current iteration/session tests. Current coverage includes persistent production priorities and toggles, the four-gear combination, Recycler control, resource-dependent rescanning, caps, preview/resolution agreement, legal ownership and phase checks, private objective selection/metrics/projection, winner reversals and ties, concession, atomic mixed payment, installation previews and explicit old-save rejection. Thirty complete v0.2 simulated games exercise both distribution and commission modes and verify private replay.
+- `npm run build` and `npm run build:pages`: strict TypeScript and production bundles pass. The browser assets are local and retain the original illustrations.
+- `python scripts/validate_package.py`: all 37 manifest assets, original catalogues and preparation-package integrity checks pass. `git diff --check` passes.
+- `npm run test:online`: two actual clients verify seat-specific private views and acknowledgements, reconnect, an actual server process restart retaining the owner's objective while excluding it from the opponent's view, a complete match (round eight, 81 moves in the observed run), mutual rematch and concession.
+- Desktop browser screenshots were inspected for private objective choice, locked-card progress, active/inactive installation adjacency, before/after production, and mixed-resource delivery shortages. Cancelling an installation preview preserved the state; confirming installed the reviewed part.
+- Production priorities changed through the arrow controls and persisted across reload with enabled/disabled settings. Disabling Recycler visibly preserved a gear in the preview; enabling it spent that gear for coal. One Run planned machines click resolved the plan and advanced to Delivery. Drag controls are implemented; a browser drag gesture is not separately claimed as tested.
+- At 390×844, screenshots confirmed production controls, objective inspection, mixed commission payment and final score breakdown. Cancelling Steamworks payment preserved reserves; confirming spent exactly three steam and one gear for three prestige. The final display separated public prestige, objective bonus and final total, with correct revealed conditions/progress. Checked states had no horizontal overflow or broken images.
+- Hotseat choice used distinct offers and locked exactly one objective per player. During handoff, the previous player's private card was absent from the DOM. Random mode assigned one card per player and unlocked Draft immediately. Closing private inspection removed the card text from the DOM.
+- A pre-finish public export was inspected and contained no objective deal, selected card, private progress or secret objective actions. Private replay fixtures used for visual checks remain ignored in `.local`. Fresh browser logs contained no errors or warnings.
+- New v0.2 games use a separate browser-storage key. A visible notice explains the version boundary when a v0.1 autosave exists; the old save remains untouched. Imports explicitly reject incompatible rules rather than silently changing an old match.
+
+These checks demonstrate rule consistency and the inspected interface. They do not establish human match duration, strategic balance, physical-device coverage, hosted multiplayer load or formal accessibility compliance. Human follow-up and configuration comparisons are described in [PLAYTEST.md](docs/clockwork-rivals/PLAYTEST.md).
+
+## Historical validation: rules 0.1.0
+
+The following checks were performed before the 0.2 iteration.
 
 ## Automated checks
 

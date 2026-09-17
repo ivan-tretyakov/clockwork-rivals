@@ -1,14 +1,22 @@
 # Clockwork Rivals — playable prototype
 
-Clockwork Rivals is implemented from the prepared v0.1 brief. Play locally against the Automaton, pass the screen between two people, or create a private online room. Living Frontier remains the original design handoff and is not implemented.
+Clockwork Rivals now uses playtest rules **0.2.0**, extending the prepared v0.1 brief. Play locally against the Automaton, pass the screen between two people, or create a private online room. Living Frontier remains the original design handoff and is not implemented.
 
 ## Public playtest
 
-Play at **https://ivan-tretyakov.github.io/clockwork-rivals/**. The GitHub Pages version supports Practice and Pass & play, including autosave, import/export, undo and rematches. Private online rooms require the Node server described below and are unavailable on this static site.
+Play at **https://ivan-tretyakov.github.io/clockwork-rivals/**. The GitHub Pages version supports Practice and Pass & play, including autosave, private objectives, public-report exports, local undo and rematches. Private online rooms require the Node server described below and are unavailable on this static site.
 
-**Produce all** runs every usable machine once in the previewed sequence and ends your production turn. Delivery opens automatically after both workshops produce. Machines follow grid order, revisiting blocked consumers when their inputs become available; passive bonuses apply automatically. This playtest update replaces the original four-activation UI with one production action.
+Choose one of two **private objectives** before Draft; each gives +2 final prestige if completed. Both cards reveal at normal match end, after public scoring triggers the finish. A private bonus can change the winner. Hotseat uses private handoff screens; online views contain only the owner's card and progress.
 
-At the **Delivery desk**, spend gears on one commission to earn prestige. Each card shows its cost, reward, and either a **Deliver** button or the number of missing gears. If you cannot afford a commission, choose **Keep gears & end Delivery** and build up your reserves next round.
+During **Produce**, enable or disable individual machines and reorder their priorities with arrows or drag-and-drop. **Run planned machines** resolves that list once and finishes your turn. Disabled Recycler leaves your delivery gears intact. Settings persist between rounds; placement affects adjacency rather than priority.
+
+Before installing a draft, review a proposed workshop, active/inactive bonuses, and production before versus after using the same current reserves. Confirming commits the Draft action; cancelling changes nothing.
+
+The **Delivery desk** shows every resource cost and prestige reward, affordable Deliver buttons, and exact shortages. Steamworks costs 3 steam + 1 gear for 3 prestige; Automated Foundry costs 2 work + 1 gear for 3 prestige. These are provisional playtest recipes alongside the three original gear commissions.
+
+**New game → Playtest rules** supports choose-two, random-one or no objectives; mixed or classic commissions; and configurable public target, round limit, coal supply and objective bonus. Defaults remain 10 public prestige, 8 rounds, 3 coal and +2 objective bonus. Pacing and balance need human sessions; see [iteration notes](docs/clockwork-rivals/ITERATION-02.md).
+
+**Version boundary:** 0.1 save files are explicitly rejected by the 0.2 client. Its original autosave remains untouched under the old browser-storage key; 0.2 starts a new match and uses a separate key. Public exports deliberately exclude private cards and cannot restore a match. Browser autosave retains the complete local game. Imports are for complete 0.2 private backup files; online room persistence is server-side.
 
 ## Run the game
 
@@ -21,9 +29,9 @@ npm run dev
 
 Open **http://localhost:5173**. The browser app runs on port 5173 and the room server on 2567. Choose **New game** for Practice, Pass & play, or Private online room. A practice game starts immediately on first visit. The Automaton is a simple heuristic practice opponent.
 
-Draft a part and click a marked slot. In Power, take coal. In Produce, review the sequence and final reserves, then click **Produce all**. In Delivery, choose a commission and confirm payment, or keep your gears. Players alternate turns; phases advance automatically. The in-game field guide and catalogue explain the rules and cards.
+Draft a part and click a marked slot. In Power, take coal. In Produce, edit priorities and enabled machines, review the result, then click **Run planned machines**. In Delivery, choose a commission and confirm payment, or keep your gears. Players alternate turns; phases advance automatically. The in-game field guide and catalogue explain the rules and cards.
 
-Local games autosave with a verified action replay. The Game menu provides save export/import, the catalogue, sound, and concession. Undo works locally; in Practice it rewinds to before your previous action. Online tables use private reconnect credentials stored in the original browser. Share the invite with a different browser/device; the same browser profile retains its own claimed seat.
+Local games autosave with a verified private action replay. The Game menu provides a redacted public-report export, private-backup import, the catalogue, sound, and concession. Undo works locally; in Practice it rewinds to before your previous action. Online tables use private reconnect credentials stored in the original browser. Share the invite with a different browser/device; the same browser profile retains its own claimed seat.
 
 ## Validate and build
 
@@ -56,7 +64,7 @@ This builds with the `/clockwork-rivals/` base path and pushes the compiled file
 
 `VITE_ROOM_SERVER` can enable online rooms in a future Pages build once an HTTPS/WebSocket server is deployed. Do not put private credentials in Vite environment variables; they are bundled into the public client.
 
-The game mechanics are functional; balance, the 20–30 minute target, and human replay appeal remain to be tested. Download local **Playtest notes** and the match log after a session. Rules values remain unchanged at v0.1.0.
+The game mechanics are functional; balance, the 20–30 minute target, and human replay appeal remain to be tested. Download local **Playtest notes** and the match log after a session. The original catalogue remains preserved; the current playtest extends it under rules 0.2.0.
 
 ---
 
