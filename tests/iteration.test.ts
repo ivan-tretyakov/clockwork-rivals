@@ -5,6 +5,8 @@ import {
   reduce,
   productionPlan,
   normalizedPlan,
+  installationPreview,
+  adjacencyInfo,
   type State,
   type Card,
   type Action,
@@ -34,6 +36,13 @@ const play = (s: State, a: Action, seat: Seat = s.activePlayer!) => {
   return r.state;
 };
 describe("Player-controlled production", () => {
+  it("previews placement under the same reserves and priorities without committing",()=>{
+    const s=fresh();s.market[0]=card("condenser","market-condenser");const original=structuredClone(s);
+    const linked=installationPreview(s,"P0","market-condenser",0)!;expect(linked.linked).toContain(3);expect(linked.before.after.steam).toBe(1);expect(linked.after.after.steam).toBe(2);
+    const unlinked=installationPreview(s,"P0","market-condenser",2)!;expect(unlinked.linked).toEqual([]);expect(unlinked.affected[0].text).toContain("inactive");
+    expect(s).toEqual(original);
+    const actual=play(s,{type:"draft-install",marketInstance:"market-condenser",slot:{row:0,column:0}});expect(productionPlan(actual,"P0").after).toEqual(linked.after.after);expect(adjacencyInfo(actual,"P0","market-condenser").text).toContain("active");
+  });
   it("keeps the starter chain and known four-gear combo", () => {
     const s = run();
     expect(productionPlan(s, "P0").after.gears).toBe(1);

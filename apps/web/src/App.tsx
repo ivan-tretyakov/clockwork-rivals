@@ -32,6 +32,7 @@ import {
   type AcceptedAction,
   type Reserve,
 } from "../../../packages/clockwork-rules/src/index";
+import { InstallationPreview } from "./InstallationPreview";
 import { ObjectiveCards } from "./ObjectiveCards";
 import { ProductionControls } from "./ProductionControls";
 import { useRoom, ROOMS_ENABLED } from "./useRoom";
@@ -253,6 +254,10 @@ export default function App() {
     setObjectiveOpen(false);
   }, [seat, net.snapshot?.matchId]);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [placement, setPlacement] = useState<{
+    action: Extract<Action, { type: "draft-install" }>;
+    index: number;
+  } | null>(null);
   const [moving, setMoving] = useState<number | null>(null);
   const [dialog, setDialog] = useState<
     "new" | "rules" | "catalogue" | "menu" | "feedback" | null
@@ -365,6 +370,7 @@ export default function App() {
     setSelection(null);
     setMoving(null);
     setConfirmation(null);
+    setPlacement(null);
     locked.current = false;
     if (state.status === "active") setFinishedDismissed(false);
   }, [state.revision, net.snapshot?.matchId, online]);
@@ -518,13 +524,7 @@ export default function App() {
             position(a.slot) === index,
         );
         if (action?.type === "draft-install") {
-          if (action.replace)
-            setConfirmation({
-              title: "Replace this machine?",
-              text: `${PARTS[state.players[seat].grid[index]!.definitionId].name} will be discarded permanently. Install ${PARTS[selectedCard!.definitionId].name} in its place?`,
-              action,
-            });
-          else act(action);
+          setPlacement({ action, index });
           return;
         }
       }
@@ -1352,7 +1352,7 @@ export default function App() {
                             <p>
                               {current.grid.every(Boolean)
                                 ? "Your workshop is full. Choose a machine to replace."
-                                : "Choose a marked empty slot in your workshop to install for free."}
+                                : "Choose a marked slot to preview the installation before committing your Draft action."}
                             </p>
                           </>
                         ) : (
@@ -2022,6 +2022,45 @@ export default function App() {
             >
               Download file ↓
             </a>
+          </div>
+        </Modal>
+      )}
+      {placement && (
+        <Modal
+          title={
+            placement.action.replace
+              ? "Review replacement"
+              : "Review installation"
+          }
+          close={() => setPlacement(null)}
+          wide
+        >
+          <InstallationPreview
+            state={state}
+            seat={seat}
+            instance={placement.action.marketInstance}
+            target={placement.index}
+          />
+          {placement.action.replace && (
+            <p className="overflow-note">
+              This permanently replaces{" "}
+              {PARTS[current.grid[placement.index]!.definitionId].name}.
+            </p>
+          )}
+          <div className="dialog-actions">
+            <button
+              className="button outline"
+              onClick={() => setPlacement(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="button"
+              disabled={!canPlay}
+              onClick={() => act(placement.action)}
+            >
+              Confirm installation →
+            </button>
           </div>
         </Modal>
       )}

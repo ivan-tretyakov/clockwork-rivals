@@ -466,6 +466,72 @@ export function validPlan(
     )
   );
 }
+export function adjacencyInfo(state: View, actor: PlayerId, instance: string) {
+  const grid = state.players[actor].grid;
+  const index = grid.findIndex((c) => c?.id === instance);
+  const card = grid[index];
+  if (!card) return { targets: [] as number[], text: "No machine" };
+  const effect = PARTS[card.definitionId].effect;
+  const target =
+    card.definitionId === "condenser"
+      ? "boiler"
+      : card.definitionId === "boiler"
+        ? "condenser"
+        : effect.adjacencyBonus?.friendlyDefinition;
+  const targets = target
+    ? neighbors(index).filter((n) => grid[n]?.definitionId === target)
+    : [];
+  return {
+    targets,
+    text: target
+      ? targets.length
+        ? `Bonus active · adjacent ${PARTS[target].name}${targets.length > 1 ? "s" : ""}`
+        : `Bonus inactive · needs an adjacent ${PARTS[target].name}`
+      : card.definitionId === "priority-valve"
+        ? "Power bonus · no adjacency needed"
+        : "No adjacency requirement · resources are shared across your workshop",
+  };
+}
+export function installationPreview(
+  state: View,
+  actor: PlayerId,
+  marketInstance: string,
+  target: number,
+) {
+  const card = state.market.find((c) => c.id === marketInstance);
+  if (
+    !card ||
+    target < 0 ||
+    target > 8 ||
+    !Number.isInteger(target) ||
+    (state.players[actor].grid[target] &&
+      !state.players[actor].grid.every(Boolean))
+  )
+    return null;
+  const next = structuredClone(state);
+  next.players[actor].grid[target] = structuredClone(card);
+  next.players[actor].productionOrder = normalizedPlan(next, actor);
+  const linked = adjacencyInfo(next, actor, card.id);
+  const affected = next.players[actor].grid
+    .filter((c): c is Card => !!c)
+    .filter(
+      (c) =>
+        c.id === card.id ||
+        canonical(adjacencyInfo(state, actor, c.id)) !==
+          canonical(adjacencyInfo(next, actor, c.id)),
+    )
+    .map((c) => ({
+      name: PARTS[c.definitionId].name,
+      ...adjacencyInfo(next, actor, c.id),
+    }));
+  return {
+    before: productionPlan(state, actor),
+    after: productionPlan(next, actor),
+    grid: next.players[actor].grid,
+    linked: linked.targets,
+    affected,
+  };
+}
 // The same pure resolver drives the preview and authoritative production.
 export function productionPlan(
   state: View,
