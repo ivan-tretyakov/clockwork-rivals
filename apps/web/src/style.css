@@ -2912,3 +2912,73 @@ img {
   line-height: 1.5 !important;
   min-height: 180px;
 }
+
+.production-controls {
+  margin: 20px 0;
+  padding: 18px;
+  background: #fafaf4;
+  border: 1px solid #d2dac9;
+  border-radius: 5px;
+}
+.production-controls h3,
+.sequence-heading {
+  font:
+    21px Georgia,
+    serif;
+  margin: 0 0 10px;
+}
+.production-controls ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+}
+.production-controls li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d2dac9;
+  border-radius: 4px;
+}
+.production-controls label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex: 1;
+  font-size: 13px;
+}
+.production-controls small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  color: #6a7669;
+}
+.production-controls input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--teal);
+}
+.production-controls .button {
+  padding: 7px 11px;
+}
+.production-controls .disabled-machine {
+  background: #eeede4;
+  color: #7c8076;
+}
+.priority-number {
+  font-size: 11px;
+  color: #687c63;
+}
+.sequence-heading {
+  margin-top: 18px;
+}
+@media (max-width: 700px) {
+  .production-controls {
+    padding: 12px;
+  }
+  .production-controls ol {
+    grid-template-columns: 1fr;
+  }
+}

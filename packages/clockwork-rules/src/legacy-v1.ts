@@ -9,7 +9,7 @@ import type {
   RuleError,
 } from "../../../contracts/engine-contract";
 export type { ClockworkAction as Action, PlayerId as Seat, Resource };
-export const VERSION = "0.2.0";
+export const VERSION = catalogue.rulesVersion;
 export const RESOURCES: Resource[] = ["coal", "steam", "work", "gears"];
 export const PHASES = ["draft", "power", "run", "deliver"] as const;
 export type Phase = (typeof PHASES)[number];
@@ -44,7 +44,7 @@ export const LIMITS = catalogue.limits;
 export const ALLOWANCE: Record<Phase, number> = {
   draft: LIMITS.draftActions,
   power: LIMITS.powerActions,
-  run: 1,
+  run: LIMITS.runActions,
   deliver: LIMITS.deliverActions,
 };
 export interface Card {
@@ -57,12 +57,7 @@ export interface Commission {
   id: string;
   definitionId: string;
 }
-export interface PlanEntry {
-  instance: string;
-  enabled: boolean;
-}
 export interface Player {
-  productionOrder: PlanEntry[];
   resources: Reserve;
   prestige: number;
   grid: (Card | null)[];
@@ -188,12 +183,6 @@ export function setup(options: SetupOptions): State {
         boosted: false,
       };
     return {
-      productionOrder: grid
-        .filter(
-          (c): c is Card =>
-            !!c && PARTS[c.definitionId].effect.kind === "convert",
-        )
-        .map((c) => ({ instance: c.id, enabled: true })),
       grid,
       resources: { ...catalogue.setup.startingResources },
       prestige: 0,
@@ -313,60 +302,19 @@ export interface ProductionStep {
   slot: number;
   effect: Preview;
 }
-export function normalizedPlan(state: View, actor: PlayerId): PlanEntry[] {
-  const machines = state.players[actor].grid.filter(
-    (c): c is Card => !!c && PARTS[c.definitionId].effect.kind === "convert",
-  );
-  const plan = (state.players[actor].productionOrder ?? []).filter((e) =>
-    machines.some((c) => c.id === e.instance),
-  );
-  return [
-    ...plan,
-    ...machines
-      .filter((c) => !plan.some((e) => e.instance === c.id))
-      .map((c) => ({ instance: c.id, enabled: true })),
-  ];
-}
-export function validPlan(
-  state: View,
-  actor: PlayerId,
-  plan: unknown,
-): plan is PlanEntry[] {
-  const expected = normalizedPlan(state, actor);
-  return (
-    Array.isArray(plan) &&
-    plan.length === expected.length &&
-    new Set(plan.map((e) => e?.instance)).size === plan.length &&
-    plan.every(
-      (e) =>
-        e &&
-        typeof e.enabled === "boolean" &&
-        Object.keys(e).length === 2 &&
-        expected.some((c) => c.instance === e.instance),
-    )
-  );
-}
-// The same pure resolver drives the preview and authoritative production.
-export function productionPlan(
-  state: View,
-  actor: PlayerId,
-  plan = normalizedPlan(state, actor),
-) {
+// Resolve the first affordable unused machine in grid order, then scan again.
+// This revisits consumers that were waiting for output from a later producer.
+// Exhaustion bounds the sequence to nine machines, including recycling loops.
+export function productionPlan(state: View, actor: PlayerId) {
   const working = structuredClone(state);
   const player = working.players[actor];
   const steps: ProductionStep[] = [];
   while (true) {
-    const next = plan.find((entry) => {
-      const card = player.grid.find((c) => c?.id === entry.instance);
-      return (
-        entry.enabled &&
-        card &&
-        !card.exhausted &&
-        preview(working, actor, card.id)?.affordable
-      );
-    });
-    if (!next) break;
-    const index = player.grid.findIndex((c) => c?.id === next.instance);
+    const index = player.grid.findIndex(
+      (card) =>
+        card && !card.exhausted && preview(working, actor, card.id)?.affordable,
+    );
+    if (index < 0) break;
     const card = player.grid[index]!;
     const effect = preview(working, actor, card.id)!;
     steps.push({
@@ -380,26 +328,16 @@ export function productionPlan(
     if (effect.condenser !== null)
       player.grid[effect.condenser]!.boosted = true;
   }
-  const skipped = plan
-    .filter((e) => !steps.some((step) => step.instance === e.instance))
-    .map((entry) => {
-      const card = player.grid.find((c) => c?.id === entry.instance)!;
-      const effect = preview(working, actor, card.id)!;
-      const missing = RESOURCES.filter(
-        (r) => player.resources[r] < (effect.input[r] ?? 0),
-      )
-        .map((r) => `${(effect.input[r] ?? 0) - player.resources[r]} ${r}`)
-        .join(", ");
-      return {
-        ...card,
-        reason: !entry.enabled
-          ? "Disabled by your plan"
-          : card.exhausted
-            ? "Already used this round"
-            : `Needs ${missing}`,
-      };
-    });
-  return { steps, after: player.resources, grid: player.grid, skipped };
+  return {
+    steps,
+    after: player.resources,
+    skipped: player.grid.filter(
+      (card): card is Card =>
+        !!card &&
+        !card.exhausted &&
+        PARTS[card.definitionId].effect.kind === "convert",
+    ),
+  };
 }
 export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
   if (state.status !== "active" || state.activePlayer !== actor) return [];
@@ -435,6 +373,10 @@ export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
       actions.push({ type: "take-coal", useValve: true });
   } else if (state.phase === "run") {
     actions.push({ type: "produce" });
+    // Retained for exact replay of existing saves; the table uses Produce all.
+    for (const c of p.grid)
+      if (c && !c.exhausted && preview(state, actor, c.id)?.affordable)
+        actions.push({ type: "activate", instance: c.id });
   } else if (state.phase === "deliver") {
     for (const c of state.orders)
       if (p.resources.gears >= ORDERS[c.definitionId].gearCost)
@@ -461,11 +403,6 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     return fail("WRONG_TURN", "It is your rival’s turn.");
   if (
     action.type !== "concede" &&
-    !(
-      action.type === "set-plan" &&
-      state.phase === "run" &&
-      validPlan(state, actor, action.plan)
-    ) &&
     !legalActions(state, actor).some((a) => canonical(a) === canonical(action))
   ) {
     if (action.type === "activate") {
@@ -488,10 +425,6 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   const s: State = structuredClone(state);
   s.revision++;
   const p = s.players[actor];
-  if (action.type === "set-plan") {
-    p.productionOrder = structuredClone(action.plan);
-    return { ok: true as const, state: s, events: [] as Event[] };
-  }
   const events: Event[] = [];
   const event = (
     type: string,
@@ -528,6 +461,26 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     RESOURCES.filter((r) => v[r])
       .map((r) => `${v[r]} ${r}`)
       .join(", ");
+  const activate = (instance: string) => {
+    const effect = preview(s, actor, instance)!;
+    const card = p.grid.find((c) => c?.id === instance)!;
+    for (const r of RESOURCES)
+      p.resources[r] += (effect.output[r] ?? 0) - (effect.input[r] ?? 0);
+    card.exhausted = true;
+    if (effect.condenser !== null) p.grid[effect.condenser]!.boosted = true;
+    event(
+      "activate",
+      `${names[actor]} runs ${PARTS[card.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
+      {
+        instance: card.id,
+        input: effect.input,
+        output: effect.output,
+        adjacent: effect.adjacent,
+      },
+      actor,
+    );
+    clamp();
+  };
   switch (action.type) {
     case "concede":
       s.status = "finished";
@@ -546,7 +499,6 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const target = position(action.slot);
       if (p.grid[target]) s.discarded.push(p.grid[target]!);
       p.grid[target] = card;
-      p.productionOrder = normalizedPlan(s, actor);
       if (s.partDeck.length) s.market.splice(i, 0, s.partDeck.shift()!);
       event(
         "draft",
@@ -586,33 +538,14 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       clamp();
       break;
     }
+    case "activate": {
+      activate(action.instance);
+      break;
+    }
     case "produce": {
       const plan = productionPlan(s, actor);
       const before = { ...p.resources };
-      for (const step of plan.steps) {
-        const effect = step.effect;
-        event(
-          "activate",
-          `${names[actor]} runs ${PARTS[step.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
-          {
-            instance: step.instance,
-            input: effect.input,
-            output: effect.output,
-            adjacent: effect.adjacent,
-          },
-          actor,
-        );
-        for (const r of RESOURCES)
-          if (effect.overflow[r])
-            event(
-              "overflow",
-              `${names[actor]} loses ${effect.overflow[r]} ${r} above the reserve cap.`,
-              { resource: r, amount: effect.overflow[r] },
-              actor,
-            );
-      }
-      p.resources = plan.after;
-      p.grid = plan.grid;
+      for (const step of plan.steps) activate(step.instance);
       s.passed[actor] = true;
       event(
         "produce",
@@ -756,10 +689,6 @@ export function saveGame(state: State, actions: AcceptedAction[]): Save {
 }
 export function loadGame(raw: string): Save {
   const save = JSON.parse(raw) as Save;
-  if (save.rulesVersion !== VERSION)
-    throw new Error(
-      `This save uses rules ${save.rulesVersion ?? "unknown"}. Version ${VERSION} adds production plans and private objectives. Keep your old backup and start a new match.`,
-    );
   if (
     save.formatVersion !== 1 ||
     save.rulesVersion !== VERSION ||

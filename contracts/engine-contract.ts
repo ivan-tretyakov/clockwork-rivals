@@ -14,6 +14,8 @@ export type ClockworkAction =
   | { type: 'take-coal'; useValve: boolean }
   | { type: 'activate'; instance: InstanceId }
   | { type: 'produce' }
+  | { type: 'set-plan'; plan: { instance: InstanceId; enabled: boolean }[] }
+  | { type: 'choose-objective'; objective: DefinitionId }
   | { type: 'deliver'; commission: InstanceId }
   | { type: 'pass' }
   | { type: 'concede' };

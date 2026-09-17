@@ -19,7 +19,7 @@ import {
   type Seat,
   type Card,
   type AcceptedAction,
-} from "../packages/clockwork-rules/src/index";
+} from "../packages/clockwork-rules/src/legacy-v1";
 const fresh = (seed = 1847) =>
   setup({ seed, rulesVersion: VERSION, initiativeOverride: "P0" });
 const play = (s: State, action: Action, actor = s.activePlayer!) => {

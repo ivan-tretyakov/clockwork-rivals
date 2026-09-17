@@ -27,6 +27,7 @@ import {
   type AcceptedAction,
   type Reserve,
 } from "../../../packages/clockwork-rules/src/index";
+import { ProductionControls } from "./ProductionControls";
 import { useRoom, ROOMS_ENABLED } from "./useRoom";
 import "./style.css";
 
@@ -39,14 +40,14 @@ const PHASE_COPY = {
     "Choose a part, then an empty workshop slot. Or rearrange one machine.",
   power:
     "Take coal from the shared supply. There are only three pieces to go around.",
-  run: "Choose Produce all to run every usable machine in sequence and finish production.",
+  run: "Choose Run planned machines to run every usable machine in sequence and finish production.",
   deliver:
     "Deliver gears to one guild commission to earn prestige. Choose a delivery below, or keep your gears for next round.",
 };
 const phaseName = (phase: string) =>
   phase === "run" ? "Produce" : phase === "deliver" ? "Delivery" : phase;
 const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
-const SAVE_KEY = "clockwork-local-v1";
+const SAVE_KEY = "clockwork-local-v2";
 function initialGame() {
   let warning = "";
   try {
@@ -838,12 +839,12 @@ export default function App() {
                       <h2>
                         {runFinished
                           ? "Production complete."
-                          : "Run your whole workshop."}
+                          : "Plan your production."}
                       </h2>
                       <p>
                         {runFinished
                           ? "Waiting for your rival to produce. Delivery opens automatically."
-                          : "One click runs each usable machine once, using its output to power the next. Then your production turn ends."}
+                          : "One click runs your enabled machines in priority order, revisiting them as resources become available. Then your production turn ends."}
                       </p>
                     </div>
                     {!runFinished && (
@@ -853,13 +854,27 @@ export default function App() {
                         onClick={() => act({ type: "produce" })}
                       >
                         {production.steps.length
-                          ? "Produce all →"
+                          ? "Run planned machines →"
                           : "Continue to Delivery →"}
                       </button>
                     )}
                   </div>
                   {!runFinished && (
                     <>
+                      <ProductionControls
+                        state={state}
+                        seat={seat}
+                        enabled={canPlay}
+                        act={act}
+                      />
+                      <button
+                        className="text-button"
+                        disabled={!canPlay}
+                        onClick={() => act({ type: "pass" })}
+                      >
+                        Skip production & keep reserves →
+                      </button>
+                      <h3 className="sequence-heading">Expected execution</h3>
                       <ol
                         className="production-sequence"
                         aria-label="Production sequence"
@@ -877,6 +892,15 @@ export default function App() {
                                 Slot {Math.floor(step.slot / 3) + 1}·
                                 {(step.slot % 3) + 1}
                               </small>
+                              <small>
+                                {RESOURCES.filter((r) => step.effect.input[r])
+                                  .map((r) => `${step.effect.input[r]} ${r}`)
+                                  .join(" + ")}{" "}
+                                →{" "}
+                                {RESOURCES.filter((r) => step.effect.output[r])
+                                  .map((r) => `${step.effect.output[r]} ${r}`)
+                                  .join(" + ")}
+                              </small>
                             </span>
                             {index < production.steps.length - 1 && (
                               <span className="sequence-arrow">→</span>
@@ -887,13 +911,29 @@ export default function App() {
                       <div className="production-outcome">
                         <span>Reserves after production</span>
                         <ResourceRow values={production.after} />
+                        {production.steps.some(
+                          (step) =>
+                            Object.keys(step.effect.overflow).length > 0,
+                        ) && (
+                          <p className="overflow-note">
+                            Cap waste:{" "}
+                            {production.steps
+                              .flatMap((step) =>
+                                Object.entries(step.effect.overflow).map(
+                                  ([r, n]) =>
+                                    `${PARTS[step.definitionId].name}: ${n} ${r}`,
+                                ),
+                              )
+                              .join("; ")}
+                          </p>
+                        )}
                       </div>
                       <p className="workflow-note">
                         {production.steps.length
-                          ? "Sequence follows grid order, returning to machines as their inputs become available. Passive bonuses apply automatically."
+                          ? "Your priority order controls execution. Passive bonuses apply automatically. Disabled machines never spend resources."
                           : "No unused machine has the resources it needs. Your reserves carry over."}
                         {production.skipped.length > 0 &&
-                          ` Waiting for resources: ${production.skipped.map((card) => PARTS[card.definitionId].name).join(", ")}.`}
+                          ` Skipped: ${production.skipped.map((card) => `${PARTS[card.definitionId].name}: ${card.reason}`).join(", ")}.`}
                       </p>
                     </>
                   )}
@@ -1268,7 +1308,7 @@ export default function App() {
                                 ? "Already produced this round."
                                 : inspected.effect.kind !== "convert"
                                   ? "Passive bonus applied automatically."
-                                  : "Included automatically when you choose Produce all above, if its inputs are available."}
+                                  : "Included automatically when you choose Run planned machines above, if its inputs are available."}
                             </p>
                           )}
                         {selection?.kind === "machine" &&
@@ -1320,7 +1360,7 @@ export default function App() {
                     </h3>
                     <p>
                       {state.phase === "run"
-                        ? "Use Produce all above to run your workshop. Select a machine here to inspect its recipe and adjacency bonuses."
+                        ? "Use Run planned machines above to run your workshop. Select a machine here to inspect its recipe and adjacency bonuses."
                         : "Select a machine to inspect its conversion and discover how it fits into your engine."}
                     </p>
                     <div className="engine-chain">
@@ -1575,11 +1615,13 @@ export default function App() {
                 )}
                 {p === "run" && (
                   <p>
-                    Machines run in grid order as their inputs become available.
-                    Each runs once, with no four-machine limit. The preview
-                    shows the exact sequence and final reserves, including any
-                    gear spent by a Recycler. Only side-sharing neighbors count
-                    for bonuses. Delivery begins after both workshops produce.
+                    Edit priority and enabled settings freely before production.
+                    Grid placement determines adjacency, not execution priority.
+                    Each enabled machine runs once; there is no four-machine
+                    limit. The preview shows the exact sequence and final
+                    reserves, including any gear spent by a Recycler. Only
+                    side-sharing neighbors count for bonuses. Delivery begins
+                    after both workshops produce.
                   </p>
                 )}
                 {p === "deliver" && (
