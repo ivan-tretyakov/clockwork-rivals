@@ -125,13 +125,15 @@ try {
   assert.equal(guest.welcome!.seat, "P1");
   assert.equal("seed" in host.snapshot!.state, false);
   assert.equal("partDeck" in host.snapshot!.state, false);
-  const hostOffers=host.snapshot!.state.objective!.offers;
-  const guestOffers=guest.snapshot!.state.objective!.offers;
-  assert.equal(new Set([...hostOffers,...guestOffers]).size,4);
-  for(const objective of hostOffers) assert.equal(JSON.stringify(guest.snapshot).includes(objective),false);
-  for(const objective of guestOffers) assert.equal(JSON.stringify(host.snapshot).includes(objective),false);
+  const hostOffers = host.snapshot!.state.objective!.offers;
+  const guestOffers = guest.snapshot!.state.objective!.offers;
+  assert.equal(new Set([...hostOffers, ...guestOffers]).size, 4);
+  for (const objective of hostOffers)
+    assert.equal(JSON.stringify(guest.snapshot).includes(objective), false);
+  for (const objective of guestOffers)
+    assert.equal(JSON.stringify(host.snapshot).includes(objective), false);
   let active = host.snapshot!.state.activePlayer === "P0" ? host : guest;
-  const firstSeat=active.welcome!.seat;
+  const firstSeat = active.welcome!.seat;
   const first = command(active, chooseBotAction(active.snapshot!.state));
   assert.equal((await send(active, first)).ok, true);
   await until(
@@ -172,10 +174,16 @@ try {
   );
   assert.equal(host.snapshot!.state.revision, 1);
   active = firstSeat === "P0" ? host : guest;
-  if(first.action.type === "choose-objective") {
-    assert.equal(active.snapshot!.state.objective!.selected,first.action.objective);
-    const opponent=firstSeat === "P0" ? guest : host;
-    assert.equal(JSON.stringify(opponent.snapshot).includes(first.action.objective),false);
+  if (first.action.type === "choose-objective") {
+    assert.equal(
+      active.snapshot!.state.objective!.selected,
+      first.action.objective,
+    );
+    const opponent = firstSeat === "P0" ? guest : host;
+    assert.equal(
+      JSON.stringify(opponent.snapshot).includes(first.action.objective),
+      false,
+    );
   }
   assert.equal((await send(active, first)).duplicate, true);
   console.log(

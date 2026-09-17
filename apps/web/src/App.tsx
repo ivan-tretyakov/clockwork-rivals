@@ -16,6 +16,9 @@ import {
   publicReport,
   OBJECTIVES,
   DEFAULT_CONFIG,
+  canAfford,
+  missingCost,
+  costText,
   type PlaytestConfig,
   other,
   position,
@@ -46,10 +49,10 @@ const PHASE_COPY = {
   draft:
     "Choose a part, then an empty workshop slot. Or rearrange one machine.",
   power:
-    "Take coal from the shared supply. There are only three pieces to go around.",
-  run: "Choose Run planned machines to run every usable machine in sequence and finish production.",
+    "Take coal from the shared supply. Fuel is limited and shared with your rival.",
+  run: "Edit priority and enabled machines, then choose Run planned machines to finish production.",
   deliver:
-    "Deliver gears to one guild commission to earn prestige. Choose a delivery below, or keep your gears for next round.",
+    "Pay the resources listed on one guild commission to earn prestige. Choose a delivery below, or keep your reserves for next round.",
 };
 const phaseName = (phase: string) =>
   phase === "run" ? "Produce" : phase === "deliver" ? "Delivery" : phase;
@@ -152,7 +155,20 @@ function CommissionArt({ id }: { id: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        {id === "street-clock" ? (
+        {id === "steamworks" ? (
+          <>
+            <path d="M18 80V47h64v33M26 47V31h10v16M22 31h18M48 47V20h12v27M44 20h20M16 80h70M27 58h12v12H27zM52 58h17v22" />
+            <path d="M30 26c-8-9 7-9 0-18M54 14c-8-8 8-8 1-14" />
+            <circle cx="71" cy="38" r="9" />
+            <path d="M71 38v-5" />
+          </>
+        ) : id === "automated-foundry" ? (
+          <>
+            <path d="M17 80V45l22-15v15l22-15v15h22v35H17ZM66 45V16h10v29M25 62h11v9H25zM46 62h11v9H46zM68 60v20" />
+            <circle cx="38" cy="18" r="9" />
+            <path d="M38 6v4M38 26v4M26 18h4M46 18h4M30 10l3 3M43 23l3 3" />
+          </>
+        ) : id === "street-clock" ? (
           <>
             <path d="M46 40v38h8V40M35 82h30M41 78h18M50 7v5M34 23h-5M66 23h5" />
             <circle cx="50" cy="26" r="17" />
@@ -321,14 +337,18 @@ export default function App() {
   const deliveryFinished =
     state.phase === "deliver" &&
     (state.passed[seat] || state.counts[seat] >= ALLOWANCE.deliver);
-  const affordableOrders = state.orders.filter(
-    (card) => ORDERS[card.definitionId].gearCost <= current.resources.gears,
+  const affordableOrders = state.orders.filter((card) =>
+    canAfford(current.resources, ORDERS[card.definitionId].cost),
   );
-  const cheapestOrder = state.orders.length
-    ? Math.min(
-        ...state.orders.map((card) => ORDERS[card.definitionId].gearCost),
-      )
-    : 0;
+  const closestOrder = [...state.orders].sort(
+    (a, b) =>
+      Object.values(
+        missingCost(current.resources, ORDERS[a.definitionId].cost),
+      ).reduce((sum, n) => sum + n, 0) -
+      Object.values(
+        missingCost(current.resources, ORDERS[b.definitionId].cost),
+      ).reduce((sum, n) => sum + n, 0),
+  )[0];
   const lastProduction = state.log
     .slice()
     .reverse()
@@ -540,7 +560,7 @@ export default function App() {
     const order = ORDERS[card.definitionId];
     setConfirmation({
       title: `Deliver ${order.name}?`,
-      text: `Pay ${order.gearCost} of your ${current.resources.gears} gears to fulfill ${order.name}. Earn ${order.prestige} prestige (${current.prestige} → ${current.prestige + order.prestige}). You keep ${current.resources.gears - order.gearCost} gears. This ends your Delivery turn.`,
+      text: `Pay ${costText(order.cost)} to fulfill ${order.name}. Earn ${order.prestige} prestige (${current.prestige} → ${current.prestige + order.prestige}). Reserves afterward: ${costText(Object.fromEntries(RESOURCES.map((r) => [r, current.resources[r] - (order.cost[r] ?? 0)])))}. This ends your Delivery turn.`,
       action: { type: "deliver", commission: id },
     });
   }
@@ -995,21 +1015,17 @@ export default function App() {
                       <h2>
                         {deliveryFinished
                           ? "Your delivery turn is complete."
-                          : "Turn your gears into prestige."}
+                          : "Fulfill a guild commission."}
                       </h2>
                       <p>
                         {deliveryFinished
                           ? "Waiting for your rival. The next round starts automatically."
-                          : "You deliver gears to the guild. Choose one commission below: pay its gear cost and earn the shown prestige."}
+                          : "Choose one commission below. Pay all its listed resources to the guild and earn the shown prestige."}
                       </p>
                     </div>
-                    <div className="delivery-balance">
-                      <Icon name="gears" />
-                      <strong>{current.resources.gears}</strong>
-                      <span>
-                        {current.resources.gears === 1 ? "gear" : "gears"}{" "}
-                        available
-                      </span>
+                    <div className="delivery-reserves">
+                      <span className="step-label">AVAILABLE TO SPEND</span>
+                      <ResourceRow values={current.resources} />
                     </div>
                   </div>
                   {lastProduction && (
@@ -1032,17 +1048,16 @@ export default function App() {
                         className={`delivery-guidance ${affordableOrders.length ? "ready" : ""}`}
                       >
                         {!state.orders.length
-                          ? "All commissions have been claimed. Keep your gears for the next round."
+                          ? "All commissions have been claimed. Keep your reserves for the next round."
                           : affordableOrders.length
                             ? `${affordableOrders.length} ${affordableOrders.length === 1 ? "commission is" : "commissions are"} affordable. ${canPlay ? "Choose a Deliver button below." : "Wait for your Delivery turn to choose."}`
-                            : `You need ${cheapestOrder - current.resources.gears} more ${cheapestOrder - current.resources.gears === 1 ? "gear" : "gears"} for the cheapest commission (${cheapestOrder} gears). Keep your gears and produce more next round.`}
+                            : `Nothing is affordable yet. Closest: ${ORDERS[closestOrder.definitionId].name} needs ${costText(missingCost(current.resources, ORDERS[closestOrder.definitionId].cost))} more. Keep your resources and produce again next round.`}
                       </p>
                       <div className="delivery-options">
                         {state.orders.map((card) => {
                           const order = ORDERS[card.definitionId];
-                          const missing = Math.max(
-                            0,
-                            order.gearCost - current.resources.gears,
+                          const missing = costText(
+                            missingCost(current.resources, order.cost),
                           );
                           return (
                             <article
@@ -1053,18 +1068,17 @@ export default function App() {
                               <div>
                                 <h3>{order.name}</h3>
                                 <p>
-                                  <Icon name="gears" /> Pay {order.gearCost}{" "}
-                                  gears <span>→</span>{" "}
+                                  Pay {costText(order.cost)} <span>→</span>{" "}
                                   <strong>+{order.prestige} prestige</strong>
                                 </p>
                               </div>
                               <button
                                 className={`button ${missing ? "outline" : ""}`}
-                                disabled={!canPlay || missing > 0}
+                                disabled={!canPlay || !!missing}
                                 onClick={() => confirmDelivery(card.id)}
                               >
                                 {missing
-                                  ? `Need ${missing} more ${missing === 1 ? "gear" : "gears"}`
+                                  ? `Missing: ${missing}`
                                   : `Deliver ${order.name} →`}
                               </button>
                             </article>
@@ -1082,8 +1096,8 @@ export default function App() {
                           onClick={() => act({ type: "pass" })}
                         >
                           {affordableOrders.length
-                            ? "Save gears & end Delivery →"
-                            : "Keep gears & end Delivery →"}
+                            ? "Save resources & end Delivery →"
+                            : "Keep resources & end Delivery →"}
                         </button>
                       </div>
                     </>
@@ -1201,10 +1215,10 @@ export default function App() {
                           affordable
                             ? confirmDelivery(card.id)
                             : setNotice(
-                                `${order.name}: spend ${order.gearCost} gears for ${order.prestige} prestige during your Delivery turn.`,
+                                `${order.name}: spend ${costText(order.cost)} for ${order.prestige} prestige during your Delivery turn.`,
                               )
                         }
-                        aria-label={`${order.name}, ${order.gearCost} gears for ${order.prestige} prestige${affordable ? ", deliver" : ""}`}
+                        aria-label={`${order.name}, ${costText(order.cost)} for ${order.prestige} prestige${affordable ? ", deliver" : ""}`}
                       >
                         <span className="order-points">
                           {order.prestige}
@@ -1213,8 +1227,7 @@ export default function App() {
                         <CommissionArt id={card.definitionId} />
                         <span className="order-title">{order.name}</span>
                         <span className="order-cost">
-                          <Icon name="gears" />
-                          {order.gearCost} gears{" "}
+                          {costText(order.cost)}{" "}
                           <span>{affordable ? "Deliver ↗" : "to deliver"}</span>
                         </span>
                       </button>
@@ -1469,7 +1482,7 @@ export default function App() {
                 {state.phase === "run"
                   ? "Use the production panel above to run your workshop."
                   : state.phase === "deliver"
-                    ? "Choose a commission or keep your gears at the Delivery desk above."
+                    ? "Choose a commission or keep your reserves at the Delivery desk above."
                     : canPlay
                       ? `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
                       : turnLabel}

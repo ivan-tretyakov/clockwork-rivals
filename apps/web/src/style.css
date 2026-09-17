@@ -3224,3 +3224,37 @@ img {
     padding: 8px 5px;
   }
 }
+
+.delivery-reserves {
+  padding: 16px;
+  background: #e5ecdc;
+  border: 1px solid #b9cbb4;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.delivery-reserves .resources {
+  margin-top: 10px;
+  gap: 13px;
+  flex-wrap: wrap;
+}
+.delivery-reserves .resource {
+  font-size: 12px;
+}
+.order-cost {
+  flex-wrap: wrap;
+  white-space: normal;
+  min-height: 34px;
+  text-align: center;
+}
+.order-card .order-title {
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 700px) {
+  .delivery-reserves {
+    width: 100%;
+  }
+  .delivery-reserves .resources {
+    justify-content: space-between;
+  }
+}

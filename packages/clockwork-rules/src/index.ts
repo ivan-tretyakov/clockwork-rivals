@@ -47,9 +47,65 @@ export interface PartDefinition {
 export const PARTS = Object.fromEntries(
   catalogue.parts.map((p) => [p.id, p]),
 ) as Record<string, PartDefinition>;
-export const ORDERS = Object.fromEntries(
-  catalogue.commissions.map((c) => [c.id, c]),
-);
+export interface CommissionDefinition {
+  id: string;
+  name: string;
+  copies: number;
+  cost: Amounts;
+  prestige: number;
+  art: string;
+}
+export const ORDERS: Record<string, CommissionDefinition> = Object.fromEntries([
+  ...catalogue.commissions.map(
+    (c) =>
+      [
+        c.id,
+        {
+          id: c.id,
+          name: c.name,
+          copies: c.copies,
+          cost: { gears: c.gearCost },
+          prestige: c.prestige,
+          art: c.art,
+        },
+      ] as const,
+  ),
+  [
+    "steamworks",
+    {
+      id: "steamworks",
+      name: "Steamworks",
+      copies: 3,
+      cost: { steam: 3, gears: 1 },
+      prestige: 3,
+      art: "assets/ui/steam.svg",
+    },
+  ],
+  [
+    "automated-foundry",
+    {
+      id: "automated-foundry",
+      name: "Automated Foundry",
+      copies: 3,
+      cost: { work: 2, gears: 1 },
+      prestige: 3,
+      art: "assets/ui/work.svg",
+    },
+  ],
+]);
+export const canAfford = (resources: Reserve, cost: Amounts) =>
+  RESOURCES.every((r) => resources[r] >= (cost[r] ?? 0));
+export const missingCost = (resources: Reserve, cost: Amounts): Amounts =>
+  Object.fromEntries(
+    RESOURCES.filter((r) => resources[r] < (cost[r] ?? 0)).map((r) => [
+      r,
+      (cost[r] ?? 0) - resources[r],
+    ]),
+  );
+export const costText = (amounts: Amounts) =>
+  RESOURCES.filter((r) => amounts[r])
+    .map((r) => `${amounts[r]} ${r}`)
+    .join(" + ");
 export const LIMITS = catalogue.limits;
 export const ALLOWANCE: Record<Phase, number> = {
   draft: LIMITS.draftActions,
@@ -90,7 +146,7 @@ export interface Event {
 }
 export const DEFAULT_CONFIG: PlaytestConfig = {
   objectives: "choice",
-  commissions: "classic",
+  commissions: "mixed",
   objectiveBonus: 2,
   targetPrestige: 10,
   maxRounds: 8,
@@ -256,7 +312,9 @@ function hash(text: string) {
   for (const c of text) n = Math.imul(n ^ c.charCodeAt(0), 16777619);
   return (n >>> 0).toString(16);
 }
-export const CATALOGUE_HASH = hash(canonical(catalogue));
+export const CATALOGUE_HASH = hash(
+  canonical({ catalogue, ORDERS, OBJECTIVES, VERSION }),
+);
 export function setup(
   options: SetupOptions & { privateSetup?: PrivateSetup },
 ): State {
@@ -314,12 +372,18 @@ export function setup(
     random,
   );
   const orderDeck = shuffle(
-    catalogue.commissions.flatMap((c) =>
-      Array.from({ length: c.copies }, (_, i) => ({
-        id: `order-${c.id}-${i}`,
-        definitionId: c.id,
-      })),
-    ),
+    Object.values(ORDERS)
+      .filter(
+        (c) =>
+          config.commissions === "mixed" ||
+          catalogue.commissions.some((original) => original.id === c.id),
+      )
+      .flatMap((c) =>
+        Array.from({ length: c.copies }, (_, i) => ({
+          id: `order-${c.id}-${i}`,
+          definitionId: c.id,
+        })),
+      ),
     random,
   );
   return {
@@ -630,7 +694,7 @@ export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
     actions.push({ type: "produce" });
   } else if (state.phase === "deliver") {
     for (const c of state.orders)
-      if (p.resources.gears >= ORDERS[c.definitionId].gearCost)
+      if (canAfford(p.resources, ORDERS[c.definitionId].cost))
         actions.push({ type: "deliver", commission: c.id });
   }
   actions.push({ type: "pass" });
@@ -860,14 +924,14 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const i = s.orders.findIndex((c) => c.id === action.commission);
       const [card] = s.orders.splice(i, 1);
       const order = ORDERS[card.definitionId];
-      p.resources.gears -= order.gearCost;
+      for (const r of RESOURCES) p.resources[r] -= order.cost[r] ?? 0;
       p.prestige += order.prestige;
       p.delivered.push(card.definitionId);
       s.discarded.push(card);
       event(
         "deliver",
         `${names[actor]} delivers ${order.name} for ${order.prestige} prestige.`,
-        { commission: card.id, prestige: order.prestige },
+        { commission: card.id, cost: order.cost, prestige: order.prestige },
         actor,
       );
       break;
@@ -1070,6 +1134,52 @@ export function chooseBotAction(s: View): ClockworkAction {
   if ("privateSetup" in s) s = project(s, s.activePlayer!);
   const seat = s.activePlayer!;
   const p = s.players[seat];
+  const goal = "objective" in s ? s.objective?.selected : null;
+  if (s.setupComplete && s.phase === "run") {
+    const priority = [
+      "precision-press",
+      "flywheel",
+      "piston",
+      "press",
+      "boiler",
+      "hand-crank",
+      "turbine",
+      "recycler",
+    ];
+    const plan = normalizedPlan(s, seat)
+      .map((entry) => {
+        const id = p.grid.find((c) => c?.id === entry.instance)!.definitionId;
+        let enabled = true;
+        if (id === "recycler")
+          enabled =
+            goal === "versatile-workshop" ||
+            (p.resources.coal === 0 && p.resources.gears >= 3);
+        if (
+          s.round >= 3 &&
+          goal === "steam-reserve" &&
+          ["piston", "flywheel", "turbine"].includes(id)
+        )
+          enabled = false;
+        if (
+          s.round >= 3 &&
+          goal === "work-reserve" &&
+          ["press", "precision-press"].includes(id)
+        )
+          enabled = false;
+        return { ...entry, enabled };
+      })
+      .sort(
+        (a, b) =>
+          priority.indexOf(
+            p.grid.find((c) => c?.id === a.instance)!.definitionId,
+          ) -
+          priority.indexOf(
+            p.grid.find((c) => c?.id === b.instance)!.definitionId,
+          ),
+      );
+    if (canonical(plan) !== canonical(normalizedPlan(s, seat)))
+      return { type: "set-plan", plan };
+  }
   const actions = legalActions(s, seat);
   const value = (a: ClockworkAction) => {
     if (a.type === "choose-objective")
@@ -1078,11 +1188,21 @@ export function chooseBotAction(s: View): ClockworkAction {
     if (a.type === "pass") return -100;
     if (a.type === "reconfigure") return -50;
     if (a.type === "take-coal") return a.useValve ? 20 : 10;
-    if (a.type === "deliver")
+    if (a.type === "deliver") {
+      const order =
+        ORDERS[s.orders.find((c) => c.id === a.commission)!.definitionId];
       return (
-        ORDERS[s.orders.find((c) => c.id === a.commission)!.definitionId]
-          .prestige * 10
+        order.prestige * 10 +
+        (goal === "guild-portfolio" && !p.delivered.includes(order.id)
+          ? 10
+          : 0) -
+        (goal === "steam-reserve"
+          ? (order.cost.steam ?? 0) * 4
+          : goal === "work-reserve"
+            ? (order.cost.work ?? 0) * 4
+            : 0)
       );
+    }
     if (a.type === "activate") {
       const v = preview(s, seat, a.instance)!;
       const id = p.grid.find((c) => c?.id === a.instance)!.definitionId;
