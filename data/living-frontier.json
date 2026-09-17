@@ -1,0 +1,258 @@
+{
+  "game": "living-frontier",
+  "rulesVersion": "0.1.0",
+  "status": "proposed-unplaytested",
+  "setup": {
+    "players": 2,
+    "rounds": 6,
+    "marketSize": 4,
+    "startingGrowth": 2,
+    "startingPoints": 0,
+    "baselineIncome": 1,
+    "homeTiles": {
+      "P0": "H5",
+      "P1": "H2"
+    },
+    "starterOrganisms": [
+      "reeds",
+      "frog"
+    ],
+    "starterSupports": [
+      "moss"
+    ],
+    "habitats": [
+      {
+        "id": "H0",
+        "q": 0,
+        "r": 0,
+        "terrain": "wetland"
+      },
+      {
+        "id": "H1",
+        "q": 1,
+        "r": 0,
+        "terrain": "woodland"
+      },
+      {
+        "id": "H2",
+        "q": 1,
+        "r": -1,
+        "terrain": "meadow"
+      },
+      {
+        "id": "H3",
+        "q": 0,
+        "r": -1,
+        "terrain": "meadow"
+      },
+      {
+        "id": "H4",
+        "q": -1,
+        "r": 0,
+        "terrain": "woodland"
+      },
+      {
+        "id": "H5",
+        "q": -1,
+        "r": 1,
+        "terrain": "meadow"
+      },
+      {
+        "id": "H6",
+        "q": 0,
+        "r": 1,
+        "terrain": "meadow"
+      }
+    ]
+  },
+  "limits": {
+    "growthCap": 10,
+    "organismsPerPlayer": 6,
+    "organismsPerPlayerPerTile": 2,
+    "supportsPerPlayer": 2,
+    "reserveCards": 5,
+    "draftActions": 1,
+    "growActions": 2,
+    "reshapeActions": 2,
+    "basicMoveCost": 2,
+    "terrainChangesPerTilePerRound": 1
+  },
+  "cards": [
+    {
+      "id": "reeds",
+      "name": "Reeds",
+      "kind": "organism",
+      "category": "producer",
+      "copies": 3,
+      "growthCost": 2,
+      "rulesText": "During income gain 1 growth; gain 2 instead in Wetland. No influence.",
+      "effect": {
+        "kind": "producer",
+        "defaultGrowth": 1,
+        "terrainGrowth": {
+          "wetland": 2
+        },
+        "defaultInfluence": 0
+      },
+      "art": "assets/living-frontier/reeds.png"
+    },
+    {
+      "id": "dragonfly",
+      "name": "Dragonfly",
+      "kind": "organism",
+      "category": "specialist",
+      "copies": 3,
+      "growthCost": 3,
+      "rulesText": "In Wetland: 1 influence, plus 2 with friendly Reeds on the same tile. Else 0.",
+      "effect": {
+        "kind": "influence",
+        "terrainInfluence": {
+          "wetland": 1
+        },
+        "defaultInfluence": 0,
+        "companionBonus": {
+          "terrain": "wetland",
+          "friendlyDefinition": "reeds",
+          "amount": 2,
+          "stacking": false
+        }
+      },
+      "art": "assets/living-frontier/dragonfly.png"
+    },
+    {
+      "id": "frog",
+      "name": "Frog",
+      "kind": "organism",
+      "category": "specialist",
+      "copies": 3,
+      "growthCost": 3,
+      "rulesText": "2 influence in Wetland; 0 elsewhere.",
+      "effect": {
+        "kind": "influence",
+        "terrainInfluence": {
+          "wetland": 2
+        },
+        "defaultInfluence": 0
+      },
+      "art": "assets/living-frontier/frog.png"
+    },
+    {
+      "id": "moss",
+      "name": "Moss",
+      "kind": "support",
+      "category": "economy",
+      "copies": 3,
+      "growthCost": 2,
+      "rulesText": "Once per player per round, optionally reduce an organism planting cost by 1 growth, to a minimum of 0. Does not stack.",
+      "effect": {
+        "kind": "plant_discount",
+        "amount": 1,
+        "perPlayerPerRound": 1,
+        "minimumCost": 0
+      },
+      "art": "assets/ui/growth.svg"
+    },
+    {
+      "id": "water-retention",
+      "name": "Water Retention",
+      "kind": "adaptation",
+      "category": "terrain",
+      "copies": 3,
+      "growthCost": 2,
+      "rulesText": "Spend 2 growth: change a reachable Meadow into Wetland. Discard this card.",
+      "effect": {
+        "kind": "terrain_change",
+        "fromTerrain": "meadow",
+        "toTerrain": "wetland"
+      },
+      "art": "assets/living-frontier/tile-wetland.svg"
+    },
+    {
+      "id": "dispersal",
+      "name": "Dispersal",
+      "kind": "adaptation",
+      "category": "movement",
+      "copies": 3,
+      "growthCost": 1,
+      "rulesText": "Spend 1 growth: move one owned organism to an adjacent habitat. Discard this card.",
+      "effect": {
+        "kind": "move",
+        "distance": 1
+      },
+      "art": "assets/ui/move.svg"
+    },
+    {
+      "id": "clover",
+      "name": "Clover",
+      "kind": "organism",
+      "category": "producer",
+      "copies": 3,
+      "growthCost": 2,
+      "rulesText": "During income gain 2 growth in Meadow; 0 elsewhere. No influence.",
+      "effect": {
+        "kind": "producer",
+        "defaultGrowth": 0,
+        "terrainGrowth": {
+          "meadow": 2
+        },
+        "defaultInfluence": 0
+      },
+      "art": "assets/ui/growth.svg"
+    },
+    {
+      "id": "bee",
+      "name": "Bee",
+      "kind": "organism",
+      "category": "specialist",
+      "copies": 3,
+      "growthCost": 3,
+      "rulesText": "In Meadow: 1 influence, plus 2 with friendly Clover on the same tile. Else 0.",
+      "effect": {
+        "kind": "influence",
+        "terrainInfluence": {
+          "meadow": 1
+        },
+        "defaultInfluence": 0,
+        "companionBonus": {
+          "terrain": "meadow",
+          "friendlyDefinition": "clover",
+          "amount": 2,
+          "stacking": false
+        }
+      },
+      "art": "assets/ui/influence.svg"
+    },
+    {
+      "id": "oak",
+      "name": "Oak",
+      "kind": "organism",
+      "category": "generalist",
+      "copies": 3,
+      "growthCost": 4,
+      "rulesText": "3 influence in Woodland; 1 in any other terrain.",
+      "effect": {
+        "kind": "influence",
+        "terrainInfluence": {
+          "woodland": 3
+        },
+        "defaultInfluence": 1
+      },
+      "art": "assets/living-frontier/tile-woodland.svg"
+    },
+    {
+      "id": "drainage",
+      "name": "Drainage",
+      "kind": "adaptation",
+      "category": "terrain",
+      "copies": 3,
+      "growthCost": 2,
+      "rulesText": "Spend 2 growth: change a reachable Wetland into Meadow. Discard this card.",
+      "effect": {
+        "kind": "terrain_change",
+        "fromTerrain": "wetland",
+        "toTerrain": "meadow"
+      },
+      "art": "assets/living-frontier/tile-meadow.svg"
+    }
+  ]
+}

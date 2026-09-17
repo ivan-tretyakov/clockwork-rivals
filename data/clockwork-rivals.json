@@ -1,0 +1,250 @@
+{
+  "game": "clockwork-rivals",
+  "rulesVersion": "0.1.0",
+  "status": "proposed-unplaytested",
+  "setup": {
+    "players": 2,
+    "gridRows": 3,
+    "gridColumns": 3,
+    "startingResources": {
+      "coal": 1,
+      "steam": 0,
+      "work": 0,
+      "gears": 0
+    },
+    "startingPrestige": 0,
+    "starterCards": [
+      {
+        "definitionId": "boiler",
+        "row": 1,
+        "column": 0
+      },
+      {
+        "definitionId": "piston",
+        "row": 1,
+        "column": 1
+      },
+      {
+        "definitionId": "press",
+        "row": 1,
+        "column": 2
+      }
+    ],
+    "marketSize": 4,
+    "commissionMarketSize": 3,
+    "sharedCoalPerRound": 3
+  },
+  "limits": {
+    "maxRounds": 8,
+    "targetPrestige": 10,
+    "resourceCap": 8,
+    "draftActions": 1,
+    "powerActions": 2,
+    "runActions": 4,
+    "deliverActions": 1
+  },
+  "parts": [
+    {
+      "id": "boiler",
+      "name": "Boiler",
+      "category": "producer",
+      "copies": 3,
+      "rulesText": "Spend 1 coal to gain 2 steam.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "coal": 1
+        },
+        "output": {
+          "steam": 2
+        }
+      },
+      "art": "assets/clockwork-rivals/boiler.png"
+    },
+    {
+      "id": "piston",
+      "name": "Piston",
+      "category": "converter",
+      "copies": 3,
+      "rulesText": "Spend 1 steam to gain 1 work.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "steam": 1
+        },
+        "output": {
+          "work": 1
+        }
+      },
+      "art": "assets/clockwork-rivals/piston.png"
+    },
+    {
+      "id": "press",
+      "name": "Press",
+      "category": "fabricator",
+      "copies": 3,
+      "rulesText": "Spend 1 work to gain 1 gear.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "work": 1
+        },
+        "output": {
+          "gears": 1
+        }
+      },
+      "art": "assets/clockwork-rivals/press.png"
+    },
+    {
+      "id": "condenser",
+      "name": "Condenser",
+      "category": "support",
+      "copies": 3,
+      "rulesText": "Once per round, boost an orthogonally adjacent Boiler activation by 1 steam. At most one Condenser boosts an activation.",
+      "effect": {
+        "kind": "adjacent_boiler_boost",
+        "amount": 1,
+        "perInstancePerRound": 1
+      },
+      "art": "assets/ui/steam.svg"
+    },
+    {
+      "id": "priority-valve",
+      "name": "Priority Valve",
+      "category": "tactic",
+      "copies": 3,
+      "rulesText": "Once per player per round, take 1 extra available coal with a Power action.",
+      "effect": {
+        "kind": "power_extra_coal",
+        "amount": 1,
+        "perPlayerPerRound": 1
+      },
+      "art": "assets/ui/coal.svg"
+    },
+    {
+      "id": "flywheel",
+      "name": "Flywheel",
+      "category": "converter",
+      "copies": 3,
+      "rulesText": "Spend 1 steam to gain 1 work; gain 1 extra work if orthogonally adjacent to a Piston.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "steam": 1
+        },
+        "output": {
+          "work": 1
+        },
+        "adjacencyBonus": {
+          "friendlyDefinition": "piston",
+          "output": {
+            "work": 1
+          },
+          "stacking": false
+        }
+      },
+      "art": "assets/ui/work.svg"
+    },
+    {
+      "id": "turbine",
+      "name": "Turbine",
+      "category": "bypass",
+      "copies": 3,
+      "rulesText": "Spend 2 steam to gain 1 gear.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "steam": 2
+        },
+        "output": {
+          "gears": 1
+        }
+      },
+      "art": "assets/ui/gears.svg"
+    },
+    {
+      "id": "recycler",
+      "name": "Recycler",
+      "category": "recycler",
+      "copies": 3,
+      "rulesText": "Spend 1 gear to gain 2 coal.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "gears": 1
+        },
+        "output": {
+          "coal": 2
+        }
+      },
+      "art": "assets/ui/coal.svg"
+    },
+    {
+      "id": "precision-press",
+      "name": "Precision Press",
+      "category": "fabricator",
+      "copies": 3,
+      "rulesText": "Spend 2 work to gain 2 gears; gain 1 extra gear if orthogonally adjacent to a Piston.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "work": 2
+        },
+        "output": {
+          "gears": 2
+        },
+        "adjacencyBonus": {
+          "friendlyDefinition": "piston",
+          "output": {
+            "gears": 1
+          },
+          "stacking": false
+        }
+      },
+      "art": "assets/ui/gears.svg"
+    },
+    {
+      "id": "hand-crank",
+      "name": "Hand Crank",
+      "category": "bypass",
+      "copies": 3,
+      "rulesText": "Spend 1 coal to gain 1 work.",
+      "effect": {
+        "kind": "convert",
+        "input": {
+          "coal": 1
+        },
+        "output": {
+          "work": 1
+        }
+      },
+      "art": "assets/ui/work.svg"
+    }
+  ],
+  "commissions": [
+    {
+      "id": "street-clock",
+      "name": "Street Clock",
+      "copies": 4,
+      "gearCost": 2,
+      "prestige": 2,
+      "art": "assets/ui/prestige.svg"
+    },
+    {
+      "id": "clock-tower",
+      "name": "Clock Tower",
+      "copies": 4,
+      "gearCost": 3,
+      "prestige": 3,
+      "art": "assets/ui/prestige.svg"
+    },
+    {
+      "id": "observatory",
+      "name": "Observatory",
+      "copies": 4,
+      "gearCost": 4,
+      "prestige": 5,
+      "art": "assets/ui/prestige.svg"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+* text=auto
+# Original manifest hashes cover exact source bytes, including SVG/CSS newlines.
+assets/** -text
+*.png binary
+*.webp binary
+*.jpg binary
+*.pdf binary

@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "created": "2026-09-17",
+  "assets": [
+    {
+      "id": "clockwork-rivals/boiler",
+      "path": "assets/clockwork-rivals/boiler.png",
+      "bytes": 2512335,
+      "sha256": "48f43d34e194cb4c5f0f1a77f69561f0a08e064067fa3739883c17f5a27e8c77",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/card-back",
+      "path": "assets/clockwork-rivals/card-back.svg",
+      "bytes": 518,
+      "sha256": "190bb053c5e069e1f5ac47d14d2c974ac524cf557ffc95f489d3e0b264dd7876",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "clockwork-rivals/card-frame",
+      "path": "assets/clockwork-rivals/card-frame.svg",
+      "bytes": 510,
+      "sha256": "8c70a4db596bb0fc5beeaf8588fa8e687262c88b55b6230bb196fa98b5ff9a7e",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "clockwork-rivals/piston",
+      "path": "assets/clockwork-rivals/piston.png",
+      "bytes": 2712797,
+      "sha256": "212cca61ab1e8062ad2b55b39802838dfecf503c8c7cd9027b916eeb55306a36",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/press",
+      "path": "assets/clockwork-rivals/press.png",
+      "bytes": 2610520,
+      "sha256": "9e7295483268d7e0005728d7a16c62e4d8869e6c63f5b4e665aa2303359f0e1f",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "living-frontier/card-back",
+      "path": "assets/living-frontier/card-back.svg",
+      "bytes": 517,
+      "sha256": "6cc09dd3f760d9977d5ea60f6d891f41c7d82ea0864e0a8be6b995a28f9c53b3",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "living-frontier/card-frame",
+      "path": "assets/living-frontier/card-frame.svg",
+      "bytes": 509,
+      "sha256": "d67949369fff6987553cbcb3e6deb8fd5210c7e8be8b19c299e3cc95ad7fbaa4",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "living-frontier/dragonfly",
+      "path": "assets/living-frontier/dragonfly.png",
+      "bytes": 2653363,
+      "sha256": "30ef00f3f067ff37e7d802d17a241f3a2ba5750c6db0071fa7a922e51be40206",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "living-frontier/frog",
+      "path": "assets/living-frontier/frog.png",
+      "bytes": 2757673,
+      "sha256": "089473067e43133d97ba4f7c991a39fb398090a9b582d922804b49a54f380248",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "living-frontier/reeds",
+      "path": "assets/living-frontier/reeds.png",
+      "bytes": 2741690,
+      "sha256": "cda2caa55a9de2a35cc1c8ddc8c5bb69970c97eb350ab12a6f1600a2e48c5cb9",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Card illustration; preserve source, render text separately"
+    },
+    {
+      "id": "living-frontier/tile-meadow",
+      "path": "assets/living-frontier/tile-meadow.svg",
+      "bytes": 484,
+      "sha256": "271d0bc57b942c219b61a7d5873944eccd45a1faa5d229f7e2b0bb2eb4521955",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "living-frontier/tile-wetland",
+      "path": "assets/living-frontier/tile-wetland.svg",
+      "bytes": 428,
+      "sha256": "93d95252b45355dcba582a610eea064143e44681fe77f48895542372b91c19bd",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "living-frontier/tile-woodland",
+      "path": "assets/living-frontier/tile-woodland.svg",
+      "bytes": 384,
+      "sha256": "4d3a6beba80756ad2970f95ee36e695afde754dc1c1091e6abc28095253ba17a",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "reference/clockwork-early-cards",
+      "path": "assets/reference/clockwork-early-cards.png",
+      "bytes": 3075046,
+      "sha256": "69cb183d1ab6412c792bd79ee827c5f517561047611a8f25b98447cd6502d889",
+      "width": 1024,
+      "height": 1536,
+      "kind": "historical-reference",
+      "alpha": "opaque",
+      "usage": "Reference only; see written rules"
+    },
+    {
+      "id": "reference/clockwork-pitch",
+      "path": "assets/reference/clockwork-pitch.png",
+      "bytes": 3105310,
+      "sha256": "d518296fc132da95a99e1c2682bfeb68bc5fa29b39d4e592ada59614ae567f42",
+      "width": 1024,
+      "height": 1536,
+      "kind": "historical-reference",
+      "alpha": "opaque",
+      "usage": "Reference only; see written rules"
+    },
+    {
+      "id": "reference/frontier-early-cards",
+      "path": "assets/reference/frontier-early-cards.png",
+      "bytes": 3259399,
+      "sha256": "85050076f9d028a893e75618162953c970086d4f97000997a4dafee8aa77d92a",
+      "width": 1024,
+      "height": 1536,
+      "kind": "historical-reference",
+      "alpha": "opaque",
+      "usage": "Reference only; see written rules"
+    },
+    {
+      "id": "reference/frontier-pitch",
+      "path": "assets/reference/frontier-pitch.png",
+      "bytes": 3391462,
+      "sha256": "ab8380c3e065380a86bf82f75386ad5d5d81310ffc1d94acaa5883e2d0f14059",
+      "width": 1024,
+      "height": 1536,
+      "kind": "historical-reference",
+      "alpha": "opaque",
+      "usage": "Reference only; see written rules"
+    },
+    {
+      "id": "ui/coal",
+      "path": "assets/ui/coal.svg",
+      "bytes": 297,
+      "sha256": "722a10f5a0a1510ee14477cb3020b9769f5e609cf94fd4b6b6cba60fe1d4fcfe",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/exhausted",
+      "path": "assets/ui/exhausted.svg",
+      "bytes": 275,
+      "sha256": "f5d45f834ded018c6bf4b1481f546147707daed3c2561e8dd81f2e5547fc3671",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/gears",
+      "path": "assets/ui/gears.svg",
+      "bytes": 429,
+      "sha256": "f342a9129f31cee102927fdcb2f5adb0dec65dd8d5f29b1264e594ebf2b810ec",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/growth",
+      "path": "assets/ui/growth.svg",
+      "bytes": 313,
+      "sha256": "44512d2fc3847e17332e67da535286cd0e74feecd707e1424dca9151b620f146",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/influence",
+      "path": "assets/ui/influence.svg",
+      "bytes": 305,
+      "sha256": "ea4f38530280913a1afcc861e8f42477b703624fe664253a0940c360892b3893",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/move",
+      "path": "assets/ui/move.svg",
+      "bytes": 284,
+      "sha256": "008d7438159deeedbdf43161b73ab60f37e45c234631547ece787e6fca670a5a",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/player-0",
+      "path": "assets/ui/player-0.svg",
+      "bytes": 298,
+      "sha256": "16ca97e4ebd747001afbb3da626618436f3b84b8a0c31528b65f032441c9ca87",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/player-1",
+      "path": "assets/ui/player-1.svg",
+      "bytes": 301,
+      "sha256": "53e93d880f49343b78a7e66e5d8829a522c2c7fd65905df4cc1d5554ec1717c0",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/prestige",
+      "path": "assets/ui/prestige.svg",
+      "bytes": 241,
+      "sha256": "8e8b1acc5f301768bd4cecf1a7069cc7ebef867133a3f33b704ded28ad4961ea",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/ready",
+      "path": "assets/ui/ready.svg",
+      "bytes": 305,
+      "sha256": "2d7bd554296e20969b25acd2a1e56df2e4cae511e9f3a01f8d0c614a0ec8fb75",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/steam",
+      "path": "assets/ui/steam.svg",
+      "bytes": 263,
+      "sha256": "45de46540b57a67908f79174442333e034146d410a40972dd695a6a12e0fb59a",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "ui/tokens",
+      "path": "assets/ui/tokens.css",
+      "bytes": 241,
+      "sha256": "35a3838e7d5924868bb6ebad381d344c62528c63c8bd448fb4849c6b31761c02",
+      "kind": "style-tokens",
+      "usage": "Editable UI palette and dimensions"
+    },
+    {
+      "id": "ui/work",
+      "path": "assets/ui/work.svg",
+      "bytes": 249,
+      "sha256": "cd55f63c1e0ceea1f647b7bfd31c5f0d2054837519e7f2879f06b3353b7097f8",
+      "kind": "editable-vector",
+      "usage": "Prototype component; pair symbols with live labels"
+    },
+    {
+      "id": "clockwork-rivals/condenser",
+      "path": "assets/clockwork-rivals/condenser.png",
+      "bytes": 2626077,
+      "sha256": "4299a23fc8b6a9998c99dc2adfe047e7500f28b533ffcb6acee74ca0cfc06186",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/flywheel",
+      "path": "assets/clockwork-rivals/flywheel.png",
+      "bytes": 2749235,
+      "sha256": "bb67a88f766bc5a4f9115c6866a548ca3f1db596526ba91f3952b2a560035f72",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/hand-crank",
+      "path": "assets/clockwork-rivals/hand-crank.png",
+      "bytes": 2426710,
+      "sha256": "6a1965f79c7f4d9ee63c210718043cb125b6437cb87ee3ef046dc56f4a1f98ad",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/precision-press",
+      "path": "assets/clockwork-rivals/precision-press.png",
+      "bytes": 2590280,
+      "sha256": "13a97dd35b2038e6bc1ff50a9bd7cbec3744f9916862b85f6ab75093cad95341",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/priority-valve",
+      "path": "assets/clockwork-rivals/priority-valve.png",
+      "bytes": 2659799,
+      "sha256": "3b6243191411059d52b6ee80f560d894d4ed441ee76a4956ba640c43776d0bb1",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/recycler",
+      "path": "assets/clockwork-rivals/recycler.png",
+      "bytes": 2812271,
+      "sha256": "9f5aeac95d7832002ffd8cf4f0b958acec2403b0be56ad3c47bdbb336a4417f8",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    },
+    {
+      "id": "clockwork-rivals/turbine",
+      "path": "assets/clockwork-rivals/turbine.png",
+      "bytes": 2699110,
+      "sha256": "1310a24b15b678d809d4bcccefcb72091ed0c7d961cee462acb225cb6f6ae489",
+      "width": 1254,
+      "height": 1254,
+      "kind": "generated-illustration",
+      "alpha": "opaque",
+      "usage": "Clockwork prototype machine illustration; preserve source, render text separately"
+    }
+  ]
+}

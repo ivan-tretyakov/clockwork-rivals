@@ -1,0 +1,51 @@
+{
+  "name": "clockwork-rivals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,server \"npm run dev:web\" \"npm run dev:server\"",
+    "dev:web": "vite --host 0.0.0.0",
+    "dev:server": "tsx watch apps/server/src/index.ts",
+    "build": "tsc --noEmit && vite build && esbuild apps/server/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server/index.js",
+    "start": "node dist/server/index.js",
+    "test": "vitest run --config vitest.config.ts",
+    "check": "tsc --noEmit",
+    "assets": "node scripts/prepare-assets.mjs",
+    "test:online": "tsx scripts/smoke-online.ts",
+    "format": "prettier --write apps/web/src apps/server/src packages/clockwork-rules/src tests/*.test.ts scripts/prepare-assets.mjs scripts/smoke-online.ts",
+    "build:pages": "tsc --noEmit && vite build --mode pages",
+    "deploy:pages": "npm run build:pages && node scripts/deploy-pages.mjs",
+    "preview:pages": "vite preview --mode pages --host 127.0.0.1 --port 4173"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.18.14",
+    "@colyseus/sdk": "^0.18.2",
+    "@colyseus/ws-transport": "^0.18.2",
+    "express": "^5.2.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.7",
+    "sharp": "^0.35.4",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^4.1.11"
+  }
+}

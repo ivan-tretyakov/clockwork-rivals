@@ -1,0 +1,1722 @@
+import React, { useEffect, useRef, useState } from "react";
+
+import {
+  ALLOWANCE,
+  PARTS,
+  ORDERS,
+  PHASES,
+  RESOURCES,
+  VERSION,
+  setup,
+  reduce,
+  legalActions,
+  preview,
+  other,
+  position,
+  replay,
+  saveGame,
+  loadGame,
+  chooseBotAction,
+  type Action,
+  type State,
+  type View,
+  type Seat,
+  type Resource,
+  type Card,
+  type AcceptedAction,
+  type Reserve,
+} from "../../../packages/clockwork-rules/src/index";
+import { useRoom, ROOMS_ENABLED } from "./useRoom";
+import "./style.css";
+
+type Mode = "practice" | "hotseat";
+type Selection =
+  { kind: "market"; id: string } | { kind: "machine"; id: string; seat: Seat };
+const NAMES: Record<Seat, string> = { P0: "Teal", P1: "Copper" };
+const PHASE_COPY = {
+  draft:
+    "Choose a part, then an empty workshop slot. Or rearrange one machine.",
+  power:
+    "Take coal from the shared supply. There are only three pieces to go around.",
+  run: "Run up to four machines, one at a time. Each machine runs once per round.",
+  deliver:
+    "Spend gears on one shared commission. Unspent resources carry into the next round.",
+};
+const randomSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
+const SAVE_KEY = "clockwork-local-v1";
+function initialGame() {
+  let warning = "";
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      const saved = loadGame(JSON.stringify(data.save));
+      return {
+        state: saved.state,
+        actions: saved.actions,
+        mode: (data.mode === "hotseat" ? "hotseat" : "practice") as Mode,
+        warning,
+      };
+    }
+  } catch (e) {
+    warning = `Saved game could not be loaded: ${(e as Error).message}. Export the stored save from the game menu if needed.`;
+  }
+  return {
+    state: setup({ seed: randomSeed(), rulesVersion: VERSION }),
+    actions: [] as AcceptedAction[],
+    mode: "practice" as Mode,
+    warning,
+  };
+}
+function Icon({ name }: { name: string }) {
+  return (
+    <img
+      className="icon"
+      src={`${import.meta.env.BASE_URL}assets/ui/${name}.svg`}
+      alt=""
+      aria-hidden="true"
+    />
+  );
+}
+function Owner({ seat }: { seat: Seat }) {
+  return (
+    <span className={`owner ${seat}`} aria-hidden="true">
+      {seat === "P0" ? "●" : "◆"}
+    </span>
+  );
+}
+function ResourceRow({
+  values,
+  compact = false,
+}: {
+  values: Partial<Reserve>;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`resources ${compact ? "compact" : ""}`}>
+      {RESOURCES.filter((r) => !compact || values[r]).map((r) => (
+        <span
+          className={`resource ${r}`}
+          key={r}
+          title={`${values[r] ?? 0} ${r}`}
+        >
+          <Icon name={r} />
+          <b key={values[r] ?? 0}>{values[r] ?? 0}</b>
+          <span>{r === "gears" ? "gears" : r}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+function Formula({ id }: { id: string }) {
+  const e = PARTS[id].effect;
+  return e.kind === "convert" ? (
+    <span className="formula">
+      <ResourceRow values={e.input!} compact />
+      <span className="arrow">→</span>
+      <ResourceRow values={e.output!} compact />
+      {e.adjacencyBonus && (
+        <span className="bonus" title="Orthogonal adjacency bonus">
+          +
+        </span>
+      )}
+    </span>
+  ) : (
+    <span className="passive-formula">
+      {id === "condenser" ? "+1 steam · adjacency" : "+1 coal · Power"}
+    </span>
+  );
+}
+function CommissionArt({ id }: { id: string }) {
+  return (
+    <svg
+      className="commission-art"
+      viewBox="0 0 100 90"
+      fill="none"
+      aria-hidden="true"
+    >
+      <g
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {id === "street-clock" ? (
+          <>
+            <path d="M46 40v38h8V40M35 82h30M41 78h18M50 7v5M34 23h-5M66 23h5" />
+            <circle cx="50" cy="26" r="17" />
+            <circle cx="50" cy="26" r="12" />
+            <path d="M50 18v8l7 4" />
+          </>
+        ) : id === "clock-tower" ? (
+          <>
+            <path d="M33 81V32h34v49M27 81h46M29 32h42L50 11 29 32ZM41 81V65h18v16M50 11V6M50 7h12l-5 5h-7" />
+            <circle cx="50" cy="45" r="9" />
+            <path d="M50 39v6l5 3M39 58h22" />
+          </>
+        ) : (
+          <>
+            <path d="M19 81h62M24 81V45h52v36M20 45h60M28 44a22 22 0 0 1 44 0M50 22V13M45 13h10M43 81V64h14v17M32 54h6M62 54h6M32 67h6M62 67h6M63 27l14-11 5 6-13 11M73 14l10 12" />
+            <path d="M39 44c0-16 5-22 11-22s11 6 11 22" />
+          </>
+        )}
+      </g>
+      <path d="M13 85h74" stroke="currentColor" opacity=".25" />
+    </svg>
+  );
+}
+function Modal({
+  title,
+  children,
+  close,
+  wide = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  close: () => void;
+  wide?: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement;
+    ref.current?.showModal();
+    return () => {
+      ref.current?.close();
+      before?.focus();
+    };
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      aria-label={title}
+      className={wide ? "modal wide" : "modal"}
+      onCancel={(e) => {
+        e.preventDefault();
+        close();
+      }}
+      onClick={(e) => {
+        if (e.target === ref.current) close();
+      }}
+    >
+      <div className="modal-head">
+        <h2>{title}</h2>
+        <button
+          className="icon-button"
+          aria-label="Close dialog"
+          onClick={close}
+        >
+          ×
+        </button>
+      </div>
+      {children}
+    </dialog>
+  );
+}
+export default function App() {
+  const [initial] = useState(initialGame);
+  const [local, setLocal] = useState(initial.state);
+  const [actions, setActions] = useState(initial.actions);
+  const [mode, setMode] = useState<Mode>(initial.mode);
+  const net = useRoom();
+  const online = net.status !== "offline";
+  const state: View = online && net.snapshot ? net.snapshot.state : local;
+  const seat: Seat = online
+    ? (net.welcome?.seat ?? "P0")
+    : mode === "practice"
+      ? "P0"
+      : (state.activePlayer ?? "P0");
+  const rival = other(seat);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [moving, setMoving] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<
+    "new" | "rules" | "catalogue" | "menu" | "feedback" | null
+  >(null);
+  const [confirmation, setConfirmation] = useState<{
+    title: string;
+    text: string;
+    action: Action;
+  } | null>(null);
+  const [notice, setNotice] = useState(initial.warning);
+  const [storageBlocked, setStorageBlocked] = useState(!!initial.warning);
+  const [sound, setSound] = useState(false);
+  const soundContext = useRef<AudioContext | null>(null);
+  const [newMode, setNewMode] = useState<Mode | "online">("practice");
+  const [seedInput, setSeedInput] = useState("");
+  const [showRival, setShowRival] = useState(false);
+  const [finishedDismissed, setFinishedDismissed] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [exported, setExported] = useState<{
+    name: string;
+    json: string;
+    url: string;
+  } | null>(null);
+  useEffect(
+    () => () => {
+      if (exported) URL.revokeObjectURL(exported.url);
+    },
+    [exported],
+  );
+  const importInput = useRef<HTMLInputElement>(null);
+  const locked = useRef(false);
+  const connected =
+    !online ||
+    (net.status === "connected" &&
+      !!net.snapshot?.connected.P0 &&
+      !!net.snapshot?.connected.P1);
+  const canPlay =
+    state.status === "active" &&
+    state.activePlayer === seat &&
+    connected &&
+    !net.pending;
+  const legal = canPlay ? legalActions(state, seat) : [];
+  const selectedCard =
+    selection?.kind === "market"
+      ? state.market.find((c) => c.id === selection.id)
+      : selection
+        ? state.players[selection.seat].grid.find((c) => c?.id === selection.id)
+        : null;
+  const inspected = selectedCard ? PARTS[selectedCard.definitionId] : null;
+  const effect =
+    selection?.kind === "machine"
+      ? preview(state, selection.seat, selection.id)
+      : null;
+  const current = state.players[seat];
+  const opponent = state.players[rival];
+  const runFinished =
+    state.phase === "run" &&
+    (state.passed[seat] || state.counts[seat] >= ALLOWANCE.run);
+  const unusedMachines = current.grid.filter(
+    (card) =>
+      card &&
+      !card.exhausted &&
+      PARTS[card.definitionId].effect.kind === "convert",
+  );
+  const noMachinesCanRun =
+    state.status === "active" &&
+    state.phase === "run" &&
+    !runFinished &&
+    !unusedMachines.some((card) => preview(state, seat, card!.id)?.affordable);
+  const runEndReason = unusedMachines.length
+    ? "Your remaining machines need more resources."
+    : "All your machines have run this round.";
+  const rivalFinishedRunning =
+    state.passed[rival] || state.counts[rival] >= ALLOWANCE.run;
+  const runNextStep = rivalFinishedRunning
+    ? "Finish running to begin Delivery. Your resources carry over."
+    : "Finish running to end your Run phase. Delivery begins when your rival is also done. Your resources carry over.";
+  const close = () => setDialog(null);
+  useEffect(() => {
+    if (storageBlocked) return;
+    try {
+      localStorage.setItem(
+        SAVE_KEY,
+        JSON.stringify({ mode, save: saveGame(local, actions) }),
+      );
+    } catch {
+      setNotice(
+        "Autosave is unavailable in this browser. Use Game menu → Export save.",
+      );
+    }
+  }, [local, actions, mode, storageBlocked]);
+  useEffect(() => {
+    setSelection(null);
+    setMoving(null);
+    setConfirmation(null);
+    locked.current = false;
+    if (state.status === "active") setFinishedDismissed(false);
+  }, [state.revision, net.snapshot?.matchId, online]);
+  useEffect(() => {
+    if (
+      online ||
+      mode !== "practice" ||
+      local.activePlayer !== "P1" ||
+      local.status !== "active" ||
+      dialog ||
+      confirmation
+    )
+      return;
+    const timer = setTimeout(() => act(chooseBotAction(local), "P1"), 650);
+    return () => clearTimeout(timer);
+  }, [local, mode, online, dialog, confirmation]);
+  function chime() {
+    if (!sound) return;
+    try {
+      const ctx = (soundContext.current ??= new AudioContext());
+      void ctx.resume();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(
+        state.phase === "deliver" ? 660 : 440,
+        ctx.currentTime,
+      );
+      gain.gain.setValueAtTime(0.035, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.18);
+    } catch {
+      /* Audio is optional. */
+    }
+  }
+  function act(action: Action, actor: Seat = seat) {
+    if (locked.current) return;
+    if (online) {
+      locked.current = true;
+      net.command(action);
+      setConfirmation(null);
+      return;
+    }
+    const result = reduce(local, actor, action);
+    if (!result.ok) {
+      setNotice(result.message);
+      return;
+    }
+    locked.current = true;
+    setLocal(result.state);
+    setActions([...actions, { actor, action }]);
+    setConfirmation(null);
+    chime();
+  }
+  useEffect(() => {
+    if (!net.pending) locked.current = false;
+  }, [net.pending]);
+  function newGame(nextMode: Mode, seed = randomSeed(), initiative?: Seat) {
+    net.leave();
+    setMode(nextMode);
+    setLocal(
+      setup({ seed, rulesVersion: VERSION, initiativeOverride: initiative }),
+    );
+    setActions([]);
+    setSelection(null);
+    setMoving(null);
+    setFinishedDismissed(false);
+    setStorageBlocked(false);
+    setNotice("");
+    locked.current = false;
+    close();
+  }
+  function undo() {
+    let count = actions.length - 1;
+    if (mode === "practice") {
+      while (count >= 0 && actions[count].actor !== "P0") count--;
+    }
+    if (count < 0) return;
+    const next = actions.slice(0, count);
+    setActions(next);
+    setLocal(replay(local.seed, local.initialInitiative, next));
+    setFinishedDismissed(false);
+  }
+  function download(value: unknown, name: string) {
+    const json = JSON.stringify(value, null, 2);
+    const url = URL.createObjectURL(
+      new Blob([json], { type: "application/json" }),
+    );
+    setExported({ name, json, url });
+    close();
+    setFinishedDismissed(true);
+  }
+  async function importSave(file?: File) {
+    if (!file) return;
+    try {
+      const saved = loadGame(await file.text());
+      net.leave();
+      setLocal(saved.state);
+      setActions(saved.actions);
+      setMode("hotseat");
+      setStorageBlocked(false);
+      close();
+      setNotice("Save imported and replay verified.");
+    } catch (e) {
+      setNotice(`Import failed: ${(e as Error).message}`);
+    }
+  }
+  function chooseSlot(index: number, owner: Seat) {
+    if (owner === seat && canPlay && state.phase === "draft") {
+      if (moving !== null) {
+        const action = legal.find(
+          (a) =>
+            a.type === "reconfigure" &&
+            position(a.from) === moving &&
+            position(a.to) === index,
+        );
+        if (action) {
+          act(action);
+          return;
+        }
+      }
+      if (selection?.kind === "market") {
+        const action = legal.find(
+          (a) =>
+            a.type === "draft-install" &&
+            a.marketInstance === selection.id &&
+            position(a.slot) === index,
+        );
+        if (action?.type === "draft-install") {
+          if (action.replace)
+            setConfirmation({
+              title: "Replace this machine?",
+              text: `${PARTS[state.players[seat].grid[index]!.definitionId].name} will be discarded permanently. Install ${PARTS[selectedCard!.definitionId].name} in its place?`,
+              action,
+            });
+          else act(action);
+          return;
+        }
+      }
+    }
+    const card = state.players[owner].grid[index];
+    if (card) {
+      setSelection({ kind: "machine", id: card.id, seat: owner });
+      setMoving(null);
+    }
+  }
+  function grid(owner: Seat, small = false) {
+    return (
+      <div
+        className={`workshop-grid ${small ? "mini" : ""}`}
+        role="group"
+        aria-label={`${NAMES[owner]} workshop`}
+      >
+        {state.players[owner].grid.map((card, index) => {
+          const target =
+            owner === seat &&
+            legal.some(
+              (a) =>
+                (a.type === "draft-install" &&
+                  selection?.kind === "market" &&
+                  a.marketInstance === selection.id &&
+                  position(a.slot) === index) ||
+                (a.type === "reconfigure" &&
+                  moving !== null &&
+                  position(a.from) === moving &&
+                  position(a.to) === index),
+            );
+          const ready =
+            card &&
+            owner === seat &&
+            legal.some((a) => a.type === "activate" && a.instance === card.id);
+          const adjacent =
+            selection?.kind === "machine" &&
+            selection.seat === owner &&
+            effect?.adjacent.includes(index);
+          return (
+            <button
+              key={index}
+              className={`grid-slot ${card ? "machine" : "empty"} ${target ? "target" : ""} ${ready ? "ready" : ""} ${card?.exhausted ? "exhausted" : ""} ${card && selection?.id === card.id ? "selected" : ""} ${adjacent ? "adjacent" : ""}`}
+              onClick={() => chooseSlot(index, owner)}
+              aria-label={`${NAMES[owner]} slot ${index + 1}${card ? `: ${PARTS[card.definitionId].name}` : ": empty"}${target ? (moving !== null ? ", move or swap here" : ", install here") : ""}`}
+              data-testid={`${owner}-slot-${index}`}
+            >
+              <span className="coordinate">
+                {Math.floor(index / 3) + 1}·{(index % 3) + 1}
+              </span>
+              {card ? (
+                <>
+                  <img
+                    className="machine-art"
+                    src={`${import.meta.env.BASE_URL}assets/clockwork-rivals/${card.definitionId}.webp`}
+                    alt=""
+                  />
+                  <span className="machine-title">
+                    {PARTS[card.definitionId].name}
+                  </span>
+                  {!small && <Formula id={card.definitionId} />}
+                  <span className={`machine-status ${ready ? "can-run" : ""}`}>
+                    {target
+                      ? moving !== null
+                        ? "↔ Move or swap"
+                        : "↳ Place here"
+                      : adjacent
+                        ? "✦ Bonus linked"
+                        : card.exhausted
+                          ? "✓ Used"
+                          : card.boosted
+                            ? "✓ Boost used"
+                            : ready
+                              ? "● Ready to run"
+                              : PARTS[card.definitionId].effect.kind ===
+                                  "convert"
+                                ? "○ Ready"
+                                : "◇ Passive"}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="empty-plus">+</span>
+                  <span>
+                    {target
+                      ? moving !== null
+                        ? "Move here"
+                        : "Install here"
+                      : "Empty slot"}
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+  if (online && !net.snapshot)
+    return (
+      <main className="connection-screen">
+        <span className="brand-gear">⚙</span>
+        <div className="eyebrow">CLOCKWORK RIVALS</div>
+        <h1>
+          {net.status === "error"
+            ? "The table is unavailable."
+            : "Opening your table…"}
+        </h1>
+        <p>
+          {net.error ||
+            "Connecting to the private room and restoring your workshop."}
+        </p>
+        {net.status === "error" && (
+          <button className="button" onClick={() => location.reload()}>
+            Retry connection
+          </button>
+        )}
+        <button className="text-button" onClick={() => net.leave()}>
+          Return to your local game
+        </button>
+      </main>
+    );
+  const turnLabel =
+    state.status === "finished"
+      ? "Match complete"
+      : !connected
+        ? net.status === "connected"
+          ? "Waiting for your rival"
+          : "Connecting to the table"
+        : state.activePlayer === seat
+          ? mode === "hotseat" && !online
+            ? `${NAMES[seat]}’s turn`
+            : "Your turn"
+          : online
+            ? "Your rival’s turn"
+            : "Automaton is thinking";
+  const remaining = Math.max(0, ALLOWANCE[state.phase] - state.counts[seat]);
+  return (
+    <>
+      <header className="site-header">
+        <a
+          className="wordmark"
+          href={location.pathname}
+          onClick={(e) => e.preventDefault()}
+          aria-label="Clockwork Rivals"
+        >
+          <span className="brand-gear">⚙</span>
+          <span>
+            CLOCKWORK
+            <b>
+              RIVALS
+              <span className="brand-line" />
+            </b>
+          </span>
+        </a>
+        <nav aria-label="Main navigation">
+          <span className="nav-active">Game table</span>
+          <button onClick={() => setDialog("catalogue")}>
+            Machine catalogue
+          </button>
+          <button onClick={() => setDialog("rules")}>
+            How to play <span className="help-dot">?</span>
+          </button>
+        </nav>
+        <div className="header-actions">
+          <button
+            className="sound-button"
+            aria-label={sound ? "Mute sound" : "Enable sound"}
+            aria-pressed={sound}
+            onClick={() => setSound(!sound)}
+          >
+            {sound ? "♪ Sound on" : "♪ Sound off"}
+          </button>
+          <button className="button outline" onClick={() => setDialog("new")}>
+            New game <span>↗</span>
+          </button>
+        </div>
+      </header>
+      <main className="game-shell">
+        <section className="table-heading">
+          <div>
+            <div className="eyebrow">
+              THE GUILD OF CLOCKMAKERS <span>•</span> EST. 1886
+            </div>
+            <h1>
+              Ingenuity meets rivalry<span>.</span>
+            </h1>
+            <p>Build your engine. Make your mark.</p>
+          </div>
+          <div className="match-meta">
+            <span className="mode-tag">
+              <i />
+              {online
+                ? "Private online table"
+                : mode === "practice"
+                  ? "Practice · vs Automaton"
+                  : "Local · two players"}
+            </span>
+            <div className="round-count">
+              Round <b>{state.round}</b>
+              <span>/ 8</span>
+              <div className="round-dots">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <i key={i} className={i < state.round ? "filled" : ""} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+        {(notice || net.error) && (
+          <div className="notice" role="alert">
+            <span>{net.error || notice}</span>
+            <button
+              aria-label="Dismiss message"
+              onClick={() => {
+                setNotice("");
+                net.clearError();
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {online && (
+          <div className="online-banner">
+            <span>
+              <span className={`connection-dot ${connected ? "live" : ""}`} />
+              {net.status === "reconnecting"
+                ? "Connection lost. Reconnecting to your saved seat…"
+                : net.status === "error"
+                  ? "Room connection unavailable"
+                  : net.welcome
+                    ? `Room ${net.welcome.roomId} · You are ${NAMES[seat]}`
+                    : "Opening a private table…"}
+              {net.snapshot &&
+                !connected &&
+                net.status === "connected" &&
+                (net.snapshot.claimed[rival]
+                  ? " · Game paused. Your rival has two minutes to reconnect."
+                  : " · Invite a friend to begin.")}
+            </span>
+            <div>
+              {net.welcome && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(location.href);
+                      setNotice(
+                        "Invite link copied. Share it with your rival.",
+                      );
+                    } catch {
+                      setNotice(`Invite link: ${location.href}`);
+                    }
+                  }}
+                >
+                  Copy invite ↗
+                </button>
+              )}
+              {net.snapshot?.canClaimForfeit[seat] && (
+                <button onClick={() => net.message("forfeit")}>
+                  Claim forfeit
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  net.leave();
+                  setNotice("Returned to your saved local table.");
+                }}
+              >
+                Leave room
+              </button>
+            </div>
+          </div>
+        )}
+        <section className="phase-strip" aria-label="Round phases">
+          {PHASES.map((phase, i) => (
+            <div
+              className={`phase-step ${state.phase === phase ? "active" : ""} ${PHASES.indexOf(state.phase) > i ? "complete" : ""}`}
+              key={phase}
+            >
+              <span className="phase-number">
+                {PHASES.indexOf(state.phase) > i ? "✓" : `0${i + 1}`}
+              </span>
+              <div>
+                <b>{phase}</b>
+                <span>
+                  {
+                    [
+                      "Build your workshop",
+                      "Gather the fuel",
+                      "Bring it to life",
+                      "Earn your prestige",
+                    ][i]
+                  }
+                </span>
+              </div>
+              <span className="phase-limit">
+                {ALLOWANCE[phase]}
+                {ALLOWANCE[phase] > 1 ? " actions" : " action"}
+              </span>
+            </div>
+          ))}
+        </section>
+        <div className="turn-bar" aria-live="polite">
+          <span className="turn-name">
+            <Owner seat={state.activePlayer ?? seat} />
+            {turnLabel}
+            <span className="thinking-dots">
+              {!canPlay && connected && state.status === "active" ? " ···" : ""}
+            </span>
+          </span>
+          <span className="turn-instruction">
+            {runFinished
+              ? "Your Run phase is finished. Waiting for your rival before Delivery."
+              : noMachinesCanRun && canPlay
+                ? `${runEndReason} Choose Finish running to continue.`
+                : PHASE_COPY[state.phase]}
+          </span>
+          <span className="turn-allowance">
+            {runFinished
+              ? "Run phase finished"
+              : noMachinesCanRun
+                ? "No machines left to run"
+                : state.status === "active" && connected
+                  ? `${remaining} / ${ALLOWANCE[state.phase]} actions left`
+                  : "First to 10 prestige"}
+          </span>
+        </div>
+        <div className="shared-table">
+          <section className="market-section">
+            <div className="section-heading">
+              <h2>
+                Parts market <span>01—10</span>
+              </h2>
+              <span>
+                {"partDeckCount" in state
+                  ? state.partDeckCount
+                  : state.partDeck.length}{" "}
+                in deck <span className="deck-icon">▱</span>
+              </span>
+            </div>
+            <div className="market-row">
+              {state.market.map((card) => (
+                <button
+                  key={card.id}
+                  data-testid="market-card"
+                  className={`market-card ${selection?.id === card.id ? "selected" : ""}`}
+                  onClick={() => {
+                    setSelection({ kind: "market", id: card.id });
+                    setMoving(null);
+                  }}
+                  aria-label={`Inspect ${PARTS[card.definitionId].name} in market`}
+                >
+                  <span className="card-category">
+                    {PARTS[card.definitionId].category}
+                    <span>↗</span>
+                  </span>
+                  <img
+                    src={`${import.meta.env.BASE_URL}assets/clockwork-rivals/${card.definitionId}.webp`}
+                    alt=""
+                  />
+                  <span className="market-name">
+                    {PARTS[card.definitionId].name}
+                  </span>
+                  <Formula id={card.definitionId} />
+                  <span className="market-footer">
+                    {state.phase === "draft" && canPlay
+                      ? "Select to install"
+                      : "Inspect machine"}
+                  </span>
+                </button>
+              ))}
+              {!state.market.length && (
+                <p className="empty-message">
+                  The parts market is empty. Rearrange your workshop or pass.
+                </p>
+              )}
+            </div>
+          </section>
+          <section className="orders-section">
+            <div className="section-heading">
+              <h2>Guild commissions</h2>
+              <span>
+                <Icon name="prestige" />
+                Race to 10
+              </span>
+            </div>
+            <div className="orders-row">
+              {state.orders.map((card) => {
+                const order = ORDERS[card.definitionId];
+                const affordable = legal.some(
+                  (a) => a.type === "deliver" && a.commission === card.id,
+                );
+                return (
+                  <button
+                    className={`order-card ${affordable ? "affordable" : ""}`}
+                    key={card.id}
+                    data-testid="commission"
+                    onClick={() =>
+                      affordable
+                        ? setConfirmation({
+                            title: `Deliver ${order.name}?`,
+                            text: `Spend ${order.gearCost} gears to earn ${order.prestige} prestige. This is your only Delivery action this round. You will have ${current.resources.gears - order.gearCost} gears remaining.`,
+                            action: { type: "deliver", commission: card.id },
+                          })
+                        : setNotice(
+                            `${order.name}: spend ${order.gearCost} gears for ${order.prestige} prestige during your Delivery turn.`,
+                          )
+                    }
+                    aria-label={`${order.name}, ${order.gearCost} gears for ${order.prestige} prestige${affordable ? ", deliver" : ""}`}
+                  >
+                    <span className="order-points">
+                      {order.prestige}
+                      <Icon name="prestige" />
+                    </span>
+                    <CommissionArt id={card.definitionId} />
+                    <span className="order-title">{order.name}</span>
+                    <span className="order-cost">
+                      <Icon name="gears" />
+                      {order.gearCost} gears{" "}
+                      <span>{affordable ? "Deliver ↗" : "to deliver"}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              {!state.orders.length && (
+                <p>
+                  {("orderDeckCount" in state
+                    ? state.orderDeckCount
+                    : state.orderDeck.length) > 0
+                    ? "New commissions arrive next round."
+                    : "All guild commissions have been claimed."}
+                </p>
+              )}
+            </div>
+            <div className="coal-pool">
+              <span className="coal-label">
+                <Icon name="coal" />
+                <b>Shared coal</b>
+                <small>Refills each round</small>
+              </span>
+              <div
+                className="coal-pieces"
+                aria-label={`${state.sharedCoal} coal available`}
+              >
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={
+                      i < state.sharedCoal
+                        ? "coal-piece available"
+                        : "coal-piece"
+                    }
+                  >
+                    {i < state.sharedCoal ? "◆" : "◇"}
+                  </span>
+                ))}
+              </div>
+              <button
+                className="button small"
+                disabled={!legal.some((a) => a.type === "take-coal")}
+                onClick={() => act({ type: "take-coal", useValve: false })}
+              >
+                Take 1 coal
+              </button>
+            </div>
+            {legal.some((a) => a.type === "take-coal" && a.useValve) && (
+              <button
+                className="valve-action"
+                onClick={() => act({ type: "take-coal", useValve: true })}
+              >
+                Use Priority Valve → Take 2 coal
+              </button>
+            )}
+          </section>
+        </div>
+        <div className="workshops">
+          <section className={`own-workshop ${seat}`}>
+            <div className="workshop-heading">
+              <div>
+                <div className="eyebrow">
+                  <Owner seat={seat} />
+                  {NAMES[seat].toUpperCase()} WORKSHOP <span>· {seat}</span>
+                </div>
+                <h2>
+                  {online || mode === "practice"
+                    ? "Your workshop"
+                    : `${NAMES[seat]}’s workshop`}
+                </h2>
+              </div>
+              <div className="prestige-score">
+                <Icon name="prestige" />
+                <b>{current.prestige}</b>
+                <span>prestige</span>
+              </div>
+            </div>
+            <div className="reserve-bar">
+              <ResourceRow values={current.resources} />
+              <span className="reserve-cap">RESERVES · MAX 8 EACH</span>
+            </div>
+            <div className="workshop-body">
+              <div className="grid-column">
+                {grid(seat)}
+                <div className="grid-caption">
+                  <span>↔ Side-by-side machines can unlock bonuses.</span>
+                  <span>3 × 3 WORKSHOP</span>
+                </div>
+              </div>
+              <aside
+                className={`inspector ${selection ? "has-selection" : ""}`}
+                aria-label="Machine inspector"
+              >
+                <div className="inspector-heading">
+                  <span>
+                    {moving !== null
+                      ? "REARRANGE MACHINE"
+                      : inspected
+                        ? selection?.kind === "market"
+                          ? "FROM THE MARKET"
+                          : "MACHINE DETAILS"
+                        : "THE WORKBENCH"}
+                  </span>
+                  {selection && (
+                    <button
+                      aria-label="Clear selection"
+                      onClick={() => {
+                        setSelection(null);
+                        setMoving(null);
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                {inspected && selectedCard ? (
+                  <>
+                    <img
+                      className="inspector-art"
+                      src={`${import.meta.env.BASE_URL}assets/clockwork-rivals/${inspected.id}.webp`}
+                      alt={`${inspected.name} illustration`}
+                    />
+                    <span className="card-category">{inspected.category}</span>
+                    <h3>{inspected.name}</h3>
+                    <p className="rules-text">{inspected.rulesText}</p>
+                    {selection?.kind === "market" ? (
+                      <div className="inspection-action">
+                        {canPlay && state.phase === "draft" ? (
+                          <>
+                            <span className="step-label">NEXT STEP</span>
+                            <p>
+                              {current.grid.every(Boolean)
+                                ? "Your workshop is full. Choose a machine to replace."
+                                : "Choose a marked empty slot in your workshop to install for free."}
+                            </p>
+                          </>
+                        ) : (
+                          <p>Available to draft during your Draft turn.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {effect && effect.affordable && (
+                          <div className="conversion-preview">
+                            <span className="step-label">AFTER ACTIVATION</span>
+                            <ResourceRow values={effect.after} />
+                            {effect.adjacent.length > 0 && (
+                              <p className="bonus-note">
+                                ✦ Adjacency bonus included. Linked neighbors are
+                                outlined in brass.
+                              </p>
+                            )}
+                            {Object.keys(effect.overflow).length > 0 && (
+                              <p className="overflow-note">
+                                Reserve cap:{" "}
+                                {Object.entries(effect.overflow)
+                                  .map(([r, v]) => `${v} ${r}`)
+                                  .join(", ")}{" "}
+                                discarded.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {selection?.kind === "machine" &&
+                          selection.seat === seat &&
+                          state.phase === "run" && (
+                            <button
+                              className="button activate-button"
+                              disabled={
+                                !legal.some(
+                                  (a) =>
+                                    a.type === "activate" &&
+                                    a.instance === selectedCard.id,
+                                )
+                              }
+                              onClick={() =>
+                                act({
+                                  type: "activate",
+                                  instance: selectedCard.id,
+                                })
+                              }
+                            >
+                              {selectedCard.exhausted
+                                ? "Already used this round"
+                                : inspected.effect.kind !== "convert"
+                                  ? "Passive machine"
+                                  : !effect?.affordable
+                                    ? "Need more resources"
+                                    : !canPlay
+                                      ? "Waiting for your turn"
+                                      : "Run this machine →"}
+                            </button>
+                          )}
+                        {selection?.kind === "machine" &&
+                          selection.seat === seat &&
+                          state.phase === "draft" &&
+                          canPlay && (
+                            <button
+                              className="button outline"
+                              onClick={() =>
+                                setMoving(
+                                  current.grid.findIndex(
+                                    (c) => c?.id === selectedCard.id,
+                                  ),
+                                )
+                              }
+                            >
+                              {moving !== null
+                                ? "Choose a destination slot"
+                                : "Move or swap this machine"}
+                            </button>
+                          )}
+                        {moving !== null && (
+                          <p className="bonus-note">
+                            Choose any other slot. Occupied slots swap machines.
+                            This uses your Draft action.
+                          </p>
+                        )}
+                        {!effect && (
+                          <p className="subtle">
+                            {inspected.id === "priority-valve"
+                              ? current.valveUsed
+                                ? "Valve bonus used this round."
+                                : "Use its bonus with a Power action."
+                              : selectedCard.boosted
+                                ? "Boost used this round."
+                                : "Boosts one adjacent Boiler automatically."}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </>
+                ) : noMachinesCanRun || runFinished ? null : (
+                  <div className="inspector-empty">
+                    <span className="workbench-mark">⚒</span>
+                    <h3>
+                      {state.phase === "run"
+                        ? "Set things in motion."
+                        : "Every part has a purpose."}
+                    </h3>
+                    <p>
+                      {state.phase === "run"
+                        ? "Select a ready machine to preview its output, then run it. Start with your Boiler to make steam."
+                        : "Select a machine to inspect its conversion and discover how it fits into your engine."}
+                    </p>
+                    <div className="engine-chain">
+                      <Icon name="coal" />
+                      <span>→</span>
+                      <Icon name="steam" />
+                      <span>→</span>
+                      <Icon name="work" />
+                      <span>→</span>
+                      <Icon name="gears" />
+                    </div>
+                    <button
+                      className="text-button"
+                      onClick={() => setDialog("rules")}
+                    >
+                      A quick guide to the game ↗
+                    </button>
+                  </div>
+                )}
+                {(noMachinesCanRun || runFinished) && (
+                  <div className="phase-completion" role="status">
+                    <span className="step-label">NEXT STEP · DELIVERY</span>
+                    <h3>
+                      {runFinished
+                        ? "You’re done running."
+                        : "No more machines to run."}
+                    </h3>
+                    <p>
+                      {runFinished
+                        ? "Your rival is finishing their actions. Delivery will begin automatically when you’re both done."
+                        : canPlay
+                          ? `${runEndReason} ${runNextStep}`
+                          : `${runEndReason} Wait for your turn, then choose Finish running.`}
+                    </p>
+                    {noMachinesCanRun && (
+                      <button
+                        className="button full"
+                        disabled={!canPlay}
+                        onClick={() => act({ type: "pass" })}
+                      >
+                        Finish running <span>→</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </aside>
+            </div>
+            <div className="action-footer">
+              <span>
+                {runFinished
+                  ? "Waiting for your rival, then Delivery begins."
+                  : canPlay
+                    ? noMachinesCanRun
+                      ? "Nothing left to run. Finish your Run phase to continue."
+                      : `You can take ${remaining} more ${remaining === 1 ? "action" : "actions"} in ${state.phase}.`
+                    : turnLabel}
+              </span>
+              <div>
+                {!online && (
+                  <button
+                    className="text-button"
+                    disabled={
+                      !actions.some(
+                        (a) => mode === "hotseat" || a.actor === "P0",
+                      )
+                    }
+                    onClick={undo}
+                  >
+                    ↶ Undo
+                  </button>
+                )}
+                <button
+                  className={`button ${noMachinesCanRun && canPlay ? "" : "outline"}`}
+                  disabled={!canPlay}
+                  onClick={() => act({ type: "pass" })}
+                >
+                  {state.phase === "run"
+                    ? runFinished
+                      ? "Run phase finished"
+                      : noMachinesCanRun
+                        ? "Finish running"
+                        : "Finish running early"
+                    : `Pass ${state.phase}`}{" "}
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          </section>
+          <aside className="rival-column">
+            <section
+              className={`rival-workshop ${rival} ${showRival ? "expanded" : ""}`}
+            >
+              <div className="rival-header">
+                <div>
+                  <div className="eyebrow">
+                    <Owner seat={rival} />
+                    {NAMES[rival].toUpperCase()} <span>· {rival}</span>
+                  </div>
+                  <h2>
+                    {!online && mode === "practice"
+                      ? "The Automaton"
+                      : "Rival’s workshop"}
+                  </h2>
+                </div>
+                <span className="rival-score">
+                  <Icon name="prestige" />
+                  <b>{opponent.prestige}</b>
+                </span>
+              </div>
+              <ResourceRow values={opponent.resources} />
+              <button
+                className="rival-toggle"
+                onClick={() => setShowRival(!showRival)}
+              >
+                {showRival ? "Hide" : "Inspect"} rival’s workshop{" "}
+                {showRival ? "−" : "+"}
+              </button>
+              <div className="rival-grid-wrap">{grid(rival, true)}</div>
+              <div className="rival-foot">
+                <span>{opponent.delivered.length} commissions delivered</span>
+                <span>
+                  {state.initiative === rival
+                    ? "◆ Initiative"
+                    : "Next round initiative"}
+                </span>
+              </div>
+            </section>
+            <section className="activity">
+              <div className="section-heading">
+                <h2>Workshop journal</h2>
+                <span>LIVE</span>
+              </div>
+              <ol aria-label="Game activity">
+                {state.log
+                  .slice(-5)
+                  .reverse()
+                  .map((event, i) => (
+                    <li key={`${event.revision}-${i}`}>
+                      <span className={`log-dot ${event.actor || ""}`} />
+                      <div>
+                        <p>{event.text}</p>
+                        <span>
+                          Round {event.round} · {event.phase}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                {!state.log.length && (
+                  <li>
+                    <span className="log-dot" />
+                    <div>
+                      <p>A new rivalry begins. The first machines are ready.</p>
+                      <span>Round 1 · Draft</span>
+                    </div>
+                  </li>
+                )}
+              </ol>
+            </section>
+          </aside>
+        </div>
+        <footer className="site-footer">
+          <span>
+            CLOCKWORK RIVALS <span> / </span> PROTOTYPE v{VERSION}
+          </span>
+          <span>10 prestige to win · 8 rounds · Every gear counts.</span>
+          <div>
+            <button onClick={() => setDialog("feedback")}>
+              Playtest notes
+            </button>
+            <button onClick={() => setDialog("menu")}>Game menu ☰</button>
+          </div>
+        </footer>
+      </main>
+      {dialog === "new" && (
+        <Modal title="A new rivalry" close={close}>
+          <p className="modal-intro">
+            Choose your table. Your local game saves automatically.
+          </p>
+          <div className="mode-choices">
+            {(
+              [
+                [
+                  "practice",
+                  "Practice",
+                  "Play against the Automaton. Learn at your pace.",
+                ],
+                [
+                  "hotseat",
+                  "Pass & play",
+                  "Two clockmakers, one screen. All information is public.",
+                ],
+                [
+                  "online",
+                  "Private online room",
+                  "Invite one friend. Moves and reconnects are saved.",
+                ],
+              ] as const
+            )
+              .filter(([id]) => id !== "online" || ROOMS_ENABLED)
+              .map(([id, title, description]) => (
+                <button
+                  key={id}
+                  className={newMode === id ? "chosen" : ""}
+                  onClick={() => setNewMode(id)}
+                >
+                  <span>{title}</span>
+                  <small>{description}</small>
+                  <b>{newMode === id ? "●" : "○"}</b>
+                </button>
+              ))}
+          </div>
+          {!ROOMS_ENABLED && (
+            <p className="subtle">
+              This public table supports Practice and Pass &amp; play. Online
+              rooms are not available on this site.
+            </p>
+          )}
+          {newMode !== "online" && (
+            <label className="field-label">
+              Seed <span>optional · reproduce the same deal</span>
+              <input
+                inputMode="numeric"
+                placeholder="Random"
+                value={seedInput}
+                onChange={(e) =>
+                  setSeedInput(
+                    e.target.value.replace(/[^0-9]/g, "").slice(0, 10),
+                  )
+                }
+              />
+            </label>
+          )}
+          <button
+            className="button full"
+            onClick={() => {
+              if (newMode === "online") {
+                close();
+                void net.connect();
+              } else
+                newGame(
+                  newMode,
+                  seedInput ? Number(seedInput) >>> 0 : randomSeed(),
+                );
+            }}
+          >
+            {newMode === "online"
+              ? "Create private room ↗"
+              : "Start new game →"}
+          </button>
+        </Modal>
+      )}
+      {dialog === "rules" && (
+        <Modal title="A clockmaker’s field guide" close={close} wide>
+          <p className="modal-intro">
+            A game of clever arrangements and contested opportunities. Two
+            workshops. One guild to impress.
+          </p>
+          <div className="rule-grid">
+            {PHASES.map((p, i) => (
+              <article key={p}>
+                <span className="rule-number">0{i + 1}</span>
+                <h3>
+                  {p}{" "}
+                  <small>
+                    {ALLOWANCE[p]} {ALLOWANCE[p] === 1 ? "action" : "actions"}{" "}
+                    each
+                  </small>
+                </h3>
+                <p>{PHASE_COPY[p]}</p>
+                {p === "draft" && (
+                  <p>
+                    Parts are free. Rearranging moves or swaps two slots.
+                    Replacement is allowed only when all nine slots are
+                    occupied.
+                  </p>
+                )}
+                {p === "power" && (
+                  <p>
+                    A Priority Valve takes one extra available coal, once per
+                    player per round. Personal reserves each hold up to 8.
+                  </p>
+                )}
+                {p === "run" && (
+                  <p>
+                    Pay the full cost before gaining output. Only side-sharing
+                    neighbors count for bonuses. Passive parts do not use an
+                    action.
+                  </p>
+                )}
+                {p === "deliver" && (
+                  <p>
+                    Commissions refill after both players finish Delivery. The
+                    player with initiative changes every round.
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+          <div className="rule-callout">
+            <h3>Make something worthy of the guild.</h3>
+            <p>
+              Reach 10 prestige to trigger the end after both Delivery
+              opportunities, or play all 8 rounds. Highest prestige wins, then
+              most unspent gears. Equal on both is a draw.
+            </p>
+            <p>
+              Alternate actions within each phase. Passing ends your
+              participation in that phase. Coal, steam, work and gears stay in
+              your reserves between rounds.
+            </p>
+          </div>
+          <button className="button" onClick={close}>
+            Back to the workshop →
+          </button>
+        </Modal>
+      )}
+      {dialog === "catalogue" && (
+        <Modal title="The machine catalogue" close={close} wide>
+          <p className="modal-intro">
+            Ten tools of the trade. Three copies of each in the parts deck, plus
+            your starter machines.
+          </p>
+          <div className="catalogue-grid">
+            {Object.values(PARTS).map((p) => (
+              <article key={p.id}>
+                <img
+                  src={`${import.meta.env.BASE_URL}assets/clockwork-rivals/${p.id}.webp`}
+                  alt={`${p.name} illustration`}
+                />
+                <div>
+                  <span className="card-category">{p.category}</span>
+                  <h3>{p.name}</h3>
+                  <Formula id={p.id} />
+                  <p>{p.rulesText}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Modal>
+      )}
+      {dialog === "menu" && (
+        <Modal title="At your table" close={close}>
+          <div className="menu-details">
+            <span>Rules {VERSION}</span>
+            <span>Revision {state.revision}</span>
+            <span>
+              {online ? "Server-authoritative room" : `Seed ${local.seed}`}
+            </span>
+          </div>
+          <div className="menu-list">
+            <button onClick={() => setDialog("catalogue")}>
+              Machine catalogue <span>↗</span>
+            </button>
+            <button onClick={() => setSound(!sound)}>
+              {sound ? "Mute sound" : "Enable sound"} <span>♪</span>
+            </button>
+            <button
+              onClick={() =>
+                download(
+                  online
+                    ? {
+                        rulesVersion: VERSION,
+                        matchId: net.snapshot?.matchId,
+                        state,
+                      }
+                    : saveGame(local, actions),
+                  `clockwork-${online ? "public-log" : "save"}-${Date.now()}.json`,
+                )
+              }
+            >
+              Export {online ? "public match log" : "save & replay"}{" "}
+              <span>↓</span>
+            </button>
+            {!online && (
+              <button onClick={() => importInput.current?.click()}>
+                Import a saved game <span>↑</span>
+              </button>
+            )}
+            {storageBlocked && (
+              <button
+                onClick={() =>
+                  download(
+                    localStorage.getItem(SAVE_KEY),
+                    "clockwork-unreadable-save.json",
+                  )
+                }
+              >
+                Export unreadable stored save
+              </button>
+            )}
+            <button
+              onClick={() => {
+                close();
+                setDialog("rules");
+              }}
+            >
+              Read the rules <span>↗</span>
+            </button>
+            {state.status === "active" && (
+              <button
+                className="danger-text"
+                onClick={() => {
+                  close();
+                  setConfirmation({
+                    title: "Concede this match?",
+                    text: `${NAMES[seat]} concedes. ${NAMES[rival]} will win immediately.`,
+                    action: { type: "concede" },
+                  });
+                }}
+              >
+                Concede match <span>⚑</span>
+              </button>
+            )}
+            {state.status === "finished" && (
+              <button
+                onClick={() => {
+                  close();
+                  setFinishedDismissed(false);
+                }}
+              >
+                View results <span>↗</span>
+              </button>
+            )}
+          </div>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => void importSave(e.target.files?.[0])}
+          />
+          <p className="subtle">
+            {online
+              ? "Invite links can claim the open rival seat. Your private reconnect credential stays in this browser."
+              : "A save contains the deal, every accepted move and the current board. Imports verify the entire replay."}
+          </p>
+        </Modal>
+      )}
+      {dialog === "feedback" && (
+        <Modal title="Notes from the workbench" close={close}>
+          <p className="modal-intro">
+            What felt clever? What felt unclear? These notes download locally
+            with the public match log for a playtest review.
+          </p>
+          <label className="field-label">
+            Your observations
+            <textarea
+              rows={6}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="A satisfying combination, a confusing moment, a part you never wanted…"
+            />
+          </label>
+          <button
+            className="button full"
+            onClick={() => {
+              download(
+                {
+                  rulesVersion: VERSION,
+                  notes: feedback,
+                  mode: online ? "online" : mode,
+                  round: state.round,
+                  winner: state.winner,
+                  log: state.log,
+                },
+                `clockwork-playtest-${Date.now()}.json`,
+              );
+              setNotice("Playtest notes are ready to save.");
+              close();
+            }}
+          >
+            Download playtest notes ↓
+          </button>
+        </Modal>
+      )}
+      {exported && (
+        <Modal title="Your export is ready" close={() => setExported(null)}>
+          <p className="modal-intro">
+            Save this file to keep your replay or notes. You can also copy its
+            contents as a backup.
+          </p>
+          <label className="field-label">
+            {exported.name}
+            <textarea
+              aria-label="Export file contents"
+              className="export-content"
+              readOnly
+              rows={8}
+              value={exported.json}
+            />
+          </label>
+          <div className="dialog-actions">
+            <button
+              className="button outline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(exported.json);
+                  setNotice(
+                    "Export contents copied. Paste into a .json file to keep it.",
+                  );
+                } catch {
+                  setNotice("Select the file contents and copy them manually.");
+                }
+              }}
+            >
+              Copy contents
+            </button>
+            <a
+              className="button download-link"
+              href={exported.url}
+              download={exported.name}
+            >
+              Download file ↓
+            </a>
+          </div>
+        </Modal>
+      )}
+      {confirmation && (
+        <Modal title={confirmation.title} close={() => setConfirmation(null)}>
+          <p className="modal-intro">{confirmation.text}</p>
+          <div className="dialog-actions">
+            <button
+              className="button outline"
+              onClick={() => setConfirmation(null)}
+            >
+              Cancel
+            </button>
+            <button className="button" onClick={() => act(confirmation.action)}>
+              Confirm{" "}
+              {confirmation.action.type === "deliver"
+                ? "delivery"
+                : confirmation.action.type === "concede"
+                  ? "concede"
+                  : "replacement"}{" "}
+              →
+            </button>
+          </div>
+        </Modal>
+      )}
+      {state.status === "finished" &&
+        !finishedDismissed &&
+        !dialog &&
+        !confirmation &&
+        !exported && (
+          <Modal
+            title={
+              state.winner === "draw"
+                ? "Honors shared."
+                : `${NAMES[state.winner!]} takes the honors.`
+            }
+            close={() => setFinishedDismissed(true)}
+          >
+            <div className="result-medal">
+              <Icon name="prestige" />
+            </div>
+            <p className="result-caption">THE GUILD HAS SPOKEN</p>
+            <div className="result-scores">
+              {(["P0", "P1"] as const).map((p) => (
+                <div key={p}>
+                  <Owner seat={p} />
+                  <h3>{NAMES[p]}</h3>
+                  <strong>{state.players[p].prestige}</strong>
+                  <span>
+                    prestige · {state.players[p].resources.gears} gears
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="subtle centered">
+              {state.log.at(-1)?.type === "concede"
+                ? state.log.at(-1)?.text
+                : "Highest prestige wins. Unspent gears break a tie."}
+            </p>
+            <button
+              className="button full"
+              disabled={online && !!net.snapshot?.rematch[seat]}
+              onClick={() =>
+                online
+                  ? net.message("rematch")
+                  : newGame(mode, randomSeed(), other(local.initialInitiative))
+              }
+            >
+              {online && net.snapshot?.rematch[seat]
+                ? "Rematch requested · waiting for rival"
+                : "Another round of rivalry →"}
+            </button>
+            <button
+              className="text-button full"
+              onClick={() => setFinishedDismissed(true)}
+            >
+              Review the finished workshop
+            </button>
+          </Modal>
+        )}
+    </>
+  );
+}

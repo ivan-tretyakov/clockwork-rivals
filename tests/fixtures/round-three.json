@@ -1,0 +1,1079 @@
+{
+  "formatVersion": 1,
+  "rulesVersion": "0.1.0",
+  "catalogueHash": "58e38f1d",
+  "seed": 1847,
+  "initialInitiative": "P0",
+  "actions": [
+    {
+      "actor": "P0",
+      "action": {
+        "type": "draft-install",
+        "marketInstance": "part-condenser-2",
+        "slot": {
+          "row": 0,
+          "column": 0
+        }
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "draft-install",
+        "marketInstance": "part-press-1",
+        "slot": {
+          "row": 0,
+          "column": 0
+        }
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-boiler"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "P1-starter-boiler"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-piston"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "P1-starter-piston"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-press"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "part-press-1"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "pass"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "pass"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "pass"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "pass"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "draft-install",
+        "marketInstance": "part-recycler-2",
+        "slot": {
+          "row": 0,
+          "column": 1
+        }
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "draft-install",
+        "marketInstance": "part-boiler-1",
+        "slot": {
+          "row": 0,
+          "column": 1
+        }
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "take-coal",
+        "useValve": false
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "P1-starter-boiler"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "part-boiler-1"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "P1-starter-piston"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-piston"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "activate",
+        "instance": "part-press-1"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-press"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "pass"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "activate",
+        "instance": "P0-starter-boiler"
+      }
+    },
+    {
+      "actor": "P1",
+      "action": {
+        "type": "deliver",
+        "commission": "order-street-clock-1"
+      }
+    },
+    {
+      "actor": "P0",
+      "action": {
+        "type": "pass"
+      }
+    }
+  ],
+  "state": {
+    "game": "clockwork-rivals",
+    "rulesVersion": "0.1.0",
+    "revision": 30,
+    "seed": 1847,
+    "initialInitiative": "P0",
+    "round": 3,
+    "phase": "draft",
+    "initiative": "P0",
+    "activePlayer": "P0",
+    "status": "active",
+    "winner": null,
+    "players": {
+      "P0": {
+        "grid": [
+          {
+            "id": "part-condenser-2",
+            "definitionId": "condenser",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "part-boiler-1",
+            "definitionId": "boiler",
+            "exhausted": false,
+            "boosted": false
+          },
+          null,
+          {
+            "id": "P0-starter-boiler",
+            "definitionId": "boiler",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "P0-starter-piston",
+            "definitionId": "piston",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "P0-starter-press",
+            "definitionId": "press",
+            "exhausted": false,
+            "boosted": false
+          },
+          null,
+          null,
+          null
+        ],
+        "resources": {
+          "coal": 1,
+          "steam": 6,
+          "work": 0,
+          "gears": 2
+        },
+        "prestige": 0,
+        "valveUsed": false,
+        "delivered": []
+      },
+      "P1": {
+        "grid": [
+          {
+            "id": "part-press-1",
+            "definitionId": "press",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "part-recycler-2",
+            "definitionId": "recycler",
+            "exhausted": false,
+            "boosted": false
+          },
+          null,
+          {
+            "id": "P1-starter-boiler",
+            "definitionId": "boiler",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "P1-starter-piston",
+            "definitionId": "piston",
+            "exhausted": false,
+            "boosted": false
+          },
+          {
+            "id": "P1-starter-press",
+            "definitionId": "press",
+            "exhausted": false,
+            "boosted": false
+          },
+          null,
+          null,
+          null
+        ],
+        "resources": {
+          "coal": 2,
+          "steam": 2,
+          "work": 0,
+          "gears": 0
+        },
+        "prestige": 2,
+        "valveUsed": false,
+        "delivered": [
+          "street-clock"
+        ]
+      }
+    },
+    "sharedCoal": 3,
+    "counts": {
+      "P0": 0,
+      "P1": 0
+    },
+    "passed": {
+      "P0": false,
+      "P1": false
+    },
+    "market": [
+      {
+        "id": "part-turbine-2",
+        "definitionId": "turbine",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-boiler-0",
+        "definitionId": "boiler",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-boiler-2",
+        "definitionId": "boiler",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-piston-0",
+        "definitionId": "piston",
+        "exhausted": false,
+        "boosted": false
+      }
+    ],
+    "orders": [
+      {
+        "id": "order-clock-tower-2",
+        "definitionId": "clock-tower"
+      },
+      {
+        "id": "order-observatory-0",
+        "definitionId": "observatory"
+      },
+      {
+        "id": "order-street-clock-0",
+        "definitionId": "street-clock"
+      }
+    ],
+    "partDeck": [
+      {
+        "id": "part-hand-crank-2",
+        "definitionId": "hand-crank",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-flywheel-2",
+        "definitionId": "flywheel",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-priority-valve-1",
+        "definitionId": "priority-valve",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-hand-crank-1",
+        "definitionId": "hand-crank",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-recycler-0",
+        "definitionId": "recycler",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-priority-valve-0",
+        "definitionId": "priority-valve",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-hand-crank-0",
+        "definitionId": "hand-crank",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-piston-2",
+        "definitionId": "piston",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-precision-press-1",
+        "definitionId": "precision-press",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-priority-valve-2",
+        "definitionId": "priority-valve",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-press-2",
+        "definitionId": "press",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-turbine-0",
+        "definitionId": "turbine",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-condenser-0",
+        "definitionId": "condenser",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-press-0",
+        "definitionId": "press",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-condenser-1",
+        "definitionId": "condenser",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-piston-1",
+        "definitionId": "piston",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-flywheel-0",
+        "definitionId": "flywheel",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-turbine-1",
+        "definitionId": "turbine",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-recycler-1",
+        "definitionId": "recycler",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-precision-press-0",
+        "definitionId": "precision-press",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-flywheel-1",
+        "definitionId": "flywheel",
+        "exhausted": false,
+        "boosted": false
+      },
+      {
+        "id": "part-precision-press-2",
+        "definitionId": "precision-press",
+        "exhausted": false,
+        "boosted": false
+      }
+    ],
+    "orderDeck": [
+      {
+        "id": "order-clock-tower-1",
+        "definitionId": "clock-tower"
+      },
+      {
+        "id": "order-clock-tower-3",
+        "definitionId": "clock-tower"
+      },
+      {
+        "id": "order-observatory-2",
+        "definitionId": "observatory"
+      },
+      {
+        "id": "order-observatory-3",
+        "definitionId": "observatory"
+      },
+      {
+        "id": "order-clock-tower-0",
+        "definitionId": "clock-tower"
+      },
+      {
+        "id": "order-street-clock-2",
+        "definitionId": "street-clock"
+      },
+      {
+        "id": "order-street-clock-3",
+        "definitionId": "street-clock"
+      },
+      {
+        "id": "order-observatory-1",
+        "definitionId": "observatory"
+      }
+    ],
+    "discarded": [
+      {
+        "id": "order-street-clock-1",
+        "definitionId": "street-clock"
+      }
+    ],
+    "log": [
+      {
+        "type": "draft",
+        "text": "Teal installs Condenser at 1:1.",
+        "data": {
+          "instance": "part-condenser-2",
+          "slot": {
+            "row": 0,
+            "column": 0
+          },
+          "replaced": null
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "draft",
+        "revision": 1
+      },
+      {
+        "type": "draft",
+        "text": "Copper installs Press at 1:1.",
+        "data": {
+          "instance": "part-press-1",
+          "slot": {
+            "row": 0,
+            "column": 0
+          },
+          "replaced": null
+        },
+        "actor": "P1",
+        "round": 1,
+        "phase": "draft",
+        "revision": 2
+      },
+      {
+        "type": "phase",
+        "text": "Power phase begins. Teal goes first.",
+        "data": {},
+        "round": 1,
+        "phase": "power",
+        "revision": 2
+      },
+      {
+        "type": "coal",
+        "text": "Teal takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "power",
+        "revision": 3
+      },
+      {
+        "type": "coal",
+        "text": "Copper takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P1",
+        "round": 1,
+        "phase": "power",
+        "revision": 4
+      },
+      {
+        "type": "coal",
+        "text": "Teal takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "power",
+        "revision": 5
+      },
+      {
+        "type": "phase",
+        "text": "Run phase begins. Teal goes first.",
+        "data": {},
+        "round": 1,
+        "phase": "run",
+        "revision": 5
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Boiler: 1 coal → 3 steam (adjacency bonus).",
+        "data": {
+          "instance": "P0-starter-boiler",
+          "input": {
+            "coal": 1
+          },
+          "output": {
+            "steam": 3
+          },
+          "adjacent": [
+            0
+          ]
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "run",
+        "revision": 6
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Boiler: 1 coal → 2 steam.",
+        "data": {
+          "instance": "P1-starter-boiler",
+          "input": {
+            "coal": 1
+          },
+          "output": {
+            "steam": 2
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 1,
+        "phase": "run",
+        "revision": 7
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Piston: 1 steam → 1 work.",
+        "data": {
+          "instance": "P0-starter-piston",
+          "input": {
+            "steam": 1
+          },
+          "output": {
+            "work": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "run",
+        "revision": 8
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Piston: 1 steam → 1 work.",
+        "data": {
+          "instance": "P1-starter-piston",
+          "input": {
+            "steam": 1
+          },
+          "output": {
+            "work": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 1,
+        "phase": "run",
+        "revision": 9
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Press: 1 work → 1 gears.",
+        "data": {
+          "instance": "P0-starter-press",
+          "input": {
+            "work": 1
+          },
+          "output": {
+            "gears": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P0",
+        "round": 1,
+        "phase": "run",
+        "revision": 10
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Press: 1 work → 1 gears.",
+        "data": {
+          "instance": "part-press-1",
+          "input": {
+            "work": 1
+          },
+          "output": {
+            "gears": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 1,
+        "phase": "run",
+        "revision": 11
+      },
+      {
+        "type": "pass",
+        "text": "Teal passes run.",
+        "data": {},
+        "actor": "P0",
+        "round": 1,
+        "phase": "run",
+        "revision": 12
+      },
+      {
+        "type": "pass",
+        "text": "Copper passes run.",
+        "data": {},
+        "actor": "P1",
+        "round": 1,
+        "phase": "run",
+        "revision": 13
+      },
+      {
+        "type": "phase",
+        "text": "Deliver phase begins. Teal goes first.",
+        "data": {},
+        "round": 1,
+        "phase": "deliver",
+        "revision": 13
+      },
+      {
+        "type": "pass",
+        "text": "Teal passes deliver.",
+        "data": {},
+        "actor": "P0",
+        "round": 1,
+        "phase": "deliver",
+        "revision": 14
+      },
+      {
+        "type": "pass",
+        "text": "Copper passes deliver.",
+        "data": {},
+        "actor": "P1",
+        "round": 1,
+        "phase": "deliver",
+        "revision": 15
+      },
+      {
+        "type": "round",
+        "text": "Round 2. Copper has initiative. Coal refilled to 3.",
+        "data": {},
+        "round": 2,
+        "phase": "draft",
+        "revision": 15
+      },
+      {
+        "type": "phase",
+        "text": "Draft phase begins. Copper goes first.",
+        "data": {},
+        "round": 2,
+        "phase": "draft",
+        "revision": 15
+      },
+      {
+        "type": "draft",
+        "text": "Copper installs Recycler at 1:2.",
+        "data": {
+          "instance": "part-recycler-2",
+          "slot": {
+            "row": 0,
+            "column": 1
+          },
+          "replaced": null
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "draft",
+        "revision": 16
+      },
+      {
+        "type": "draft",
+        "text": "Teal installs Boiler at 1:2.",
+        "data": {
+          "instance": "part-boiler-1",
+          "slot": {
+            "row": 0,
+            "column": 1
+          },
+          "replaced": null
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "draft",
+        "revision": 17
+      },
+      {
+        "type": "phase",
+        "text": "Power phase begins. Copper goes first.",
+        "data": {},
+        "round": 2,
+        "phase": "power",
+        "revision": 17
+      },
+      {
+        "type": "coal",
+        "text": "Copper takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "power",
+        "revision": 18
+      },
+      {
+        "type": "coal",
+        "text": "Teal takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "power",
+        "revision": 19
+      },
+      {
+        "type": "coal",
+        "text": "Copper takes 1 coal.",
+        "data": {
+          "amount": 1
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "power",
+        "revision": 20
+      },
+      {
+        "type": "phase",
+        "text": "Run phase begins. Copper goes first.",
+        "data": {},
+        "round": 2,
+        "phase": "run",
+        "revision": 20
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Boiler: 1 coal → 2 steam.",
+        "data": {
+          "instance": "P1-starter-boiler",
+          "input": {
+            "coal": 1
+          },
+          "output": {
+            "steam": 2
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "run",
+        "revision": 21
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Boiler: 1 coal → 3 steam (adjacency bonus).",
+        "data": {
+          "instance": "part-boiler-1",
+          "input": {
+            "coal": 1
+          },
+          "output": {
+            "steam": 3
+          },
+          "adjacent": [
+            0
+          ]
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "run",
+        "revision": 22
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Piston: 1 steam → 1 work.",
+        "data": {
+          "instance": "P1-starter-piston",
+          "input": {
+            "steam": 1
+          },
+          "output": {
+            "work": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "run",
+        "revision": 23
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Piston: 1 steam → 1 work.",
+        "data": {
+          "instance": "P0-starter-piston",
+          "input": {
+            "steam": 1
+          },
+          "output": {
+            "work": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "run",
+        "revision": 24
+      },
+      {
+        "type": "activate",
+        "text": "Copper runs Press: 1 work → 1 gears.",
+        "data": {
+          "instance": "part-press-1",
+          "input": {
+            "work": 1
+          },
+          "output": {
+            "gears": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "run",
+        "revision": 25
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Press: 1 work → 1 gears.",
+        "data": {
+          "instance": "P0-starter-press",
+          "input": {
+            "work": 1
+          },
+          "output": {
+            "gears": 1
+          },
+          "adjacent": []
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "run",
+        "revision": 26
+      },
+      {
+        "type": "pass",
+        "text": "Copper passes run.",
+        "data": {},
+        "actor": "P1",
+        "round": 2,
+        "phase": "run",
+        "revision": 27
+      },
+      {
+        "type": "activate",
+        "text": "Teal runs Boiler: 1 coal → 2 steam.",
+        "data": {
+          "instance": "P0-starter-boiler",
+          "input": {
+            "coal": 1
+          },
+          "output": {
+            "steam": 2
+          },
+          "adjacent": []
+        },
+        "actor": "P0",
+        "round": 2,
+        "phase": "run",
+        "revision": 28
+      },
+      {
+        "type": "phase",
+        "text": "Deliver phase begins. Copper goes first.",
+        "data": {},
+        "round": 2,
+        "phase": "deliver",
+        "revision": 28
+      },
+      {
+        "type": "deliver",
+        "text": "Copper delivers Street Clock for 2 prestige.",
+        "data": {
+          "commission": "order-street-clock-1",
+          "prestige": 2
+        },
+        "actor": "P1",
+        "round": 2,
+        "phase": "deliver",
+        "revision": 29
+      },
+      {
+        "type": "pass",
+        "text": "Teal passes deliver.",
+        "data": {},
+        "actor": "P0",
+        "round": 2,
+        "phase": "deliver",
+        "revision": 30
+      },
+      {
+        "type": "round",
+        "text": "Round 3. Teal has initiative. Coal refilled to 3.",
+        "data": {},
+        "round": 3,
+        "phase": "draft",
+        "revision": 30
+      },
+      {
+        "type": "phase",
+        "text": "Draft phase begins. Teal goes first.",
+        "data": {},
+        "round": 3,
+        "phase": "draft",
+        "revision": 30
+      }
+    ]
+  }
+}
