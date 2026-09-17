@@ -9,6 +9,7 @@ import {
   type State,
   type Seat,
   type AcceptedAction,
+  type PlaytestConfig,
 } from "../../../packages/clockwork-rules/src/index";
 import type {
   CommandEnvelope,
@@ -43,13 +44,16 @@ export class Session {
     creatorKey: string,
     saved?: RecordData,
     private persist: (data: RecordData) => void = () => {},
+    config?: Partial<PlaytestConfig>,
   ) {
+    if (saved && saved.state.rulesVersion !== VERSION)
+      throw new Error("This room uses older rules. Create a new 0.2 room.");
     this.data = saved ?? {
       roomId,
       invite: token(),
       creatorKey,
       matchId: randomUUID(),
-      state: setup({ seed: seed(), rulesVersion: VERSION }),
+      state: setup({ seed: seed(), rulesVersion: VERSION, config }),
       actions: [],
       seats: {
         P0: { token: null, disconnectedAt: null },
@@ -106,9 +110,9 @@ export class Session {
     this.data.seats[seat].disconnectedAt = Date.now();
     this.commit();
   }
-  snapshot() {
+  snapshot(viewer: Seat | "spectator" = "spectator") {
     return {
-      state: project(this.data.state),
+      state: project(this.data.state, viewer),
       matchId: this.data.matchId,
       connected: this.connected,
       claimed: {
@@ -210,6 +214,7 @@ export class Session {
         seed: seed(),
         rulesVersion: VERSION,
         initiativeOverride: initiative,
+        config: this.data.state.config,
       });
       this.data.matchId = randomUUID();
       this.data.actions = [];

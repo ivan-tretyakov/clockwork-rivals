@@ -9,7 +9,7 @@ import {
   type Action,
 } from "../packages/clockwork-rules/src/index";
 const room = () => {
-  const r = new Session("test-room", "creator-secret");
+  const r = new Session("test-room", "creator-secret", undefined, undefined, {objectives:"off"});
   r.join("P0");
   r.join("P1");
   return r;
@@ -157,7 +157,7 @@ describe("Authoritative private sessions", () => {
       expect(r.data.actions.length).toBeLessThan(160);
     }
     expect(
-      replay(r.data.state.seed, r.data.state.initialInitiative, r.data.actions),
+      replay(r.data.state.seed, r.data.state.initialInitiative, r.data.actions, r.data.state.privateSetup, r.data.state.config),
     ).toEqual(r.data.state);
   });
 });

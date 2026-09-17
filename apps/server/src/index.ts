@@ -11,7 +11,11 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Session, token, type RecordData } from "./session";
-import type { Seat } from "../../../packages/clockwork-rules/src/index";
+import {
+  VERSION,
+  type Seat,
+  type PlaytestConfig,
+} from "../../../packages/clockwork-rules/src/index";
 const dataDir = resolve(process.env.DATA_DIR || ".local");
 mkdirSync(dataDir, { recursive: true });
 const db = new DatabaseSync(resolve(dataDir, "rooms.sqlite"));
@@ -29,7 +33,11 @@ class ClockworkRoom extends Room {
   session!: Session;
   seatByClient = new Map<string, Seat>();
   rates = new Map<string, { at: number; n: number }>();
-  onCreate(options: { creatorKey?: string; restoreTicket?: string }) {
+  onCreate(options: {
+    creatorKey?: string;
+    restoreTicket?: string;
+    config?: Partial<PlaytestConfig>;
+  }) {
     const restored = options.restoreTicket
       ? restoreTickets.get(options.restoreTicket)
       : undefined;
@@ -48,6 +56,7 @@ class ClockworkRoom extends Room {
       (d) => {
         save.run(d.roomId, JSON.stringify(d), d.updatedAt);
       },
+      options.config,
     );
     this.session.commit();
     sessions.set(this.roomId, this.session);
@@ -142,10 +151,13 @@ class ClockworkRoom extends Room {
       invite: this.session.data.invite,
       roomId: this.roomId,
     });
-    client.send("snapshot", this.session.snapshot());
+    client.send("snapshot", this.session.snapshot(seat));
   }
   publish() {
-    this.broadcast("snapshot", this.session.snapshot());
+    for (const client of this.clients) {
+      const seat = this.seatByClient.get(client.sessionId);
+      if (seat) client.send("snapshot", this.session.snapshot(seat));
+    }
   }
   onDispose() {
     sessions.delete(this.roomId);
@@ -175,18 +187,16 @@ const server = new Server({
         r.n++;
         requestRates.set(key, r);
         if (r.n > 60) {
-          res
-            .status(429)
-            .json({
-              error: "Too many connection requests. Try again in a minute.",
-            });
+          res.status(429).json({
+            error: "Too many connection requests. Try again in a minute.",
+          });
           return;
         }
       }
       next();
     });
     app.get("/api/health", (_req, res) =>
-      res.json({ ok: true, game: "clockwork-rivals", version: "0.1.0" }),
+      res.json({ ok: true, game: "clockwork-rivals", version: VERSION }),
     );
     app.use(express.static(resolve("dist/web")));
   },
@@ -197,6 +207,12 @@ await server.listen(port, "0.0.0.0");
 db.prepare("DELETE FROM rooms WHERE updated < ?").run(Date.now() - 86_400_000);
 for (const row of db.prepare("SELECT data FROM rooms").all()) {
   const data = JSON.parse(row.data as string) as RecordData;
+  if (data.state.rulesVersion !== VERSION) {
+    console.log(
+      `Retaining inactive legacy room ${data.roomId}; create a new room for rules ${VERSION}.`,
+    );
+    continue;
+  }
   const ticket = token();
   restoreTickets.set(ticket, data);
   await matchMaker.createRoom("clockwork", { restoreTicket: ticket });

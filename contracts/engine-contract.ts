@@ -70,6 +70,15 @@ export interface SetupOptions {
   rulesVersion: string;
   /** Used by agreed rematches to alternate the initial player. */
   initiativeOverride?: PlayerId;
+  config?: Partial<PlaytestConfig>;
+}
+export interface PlaytestConfig {
+  objectives: 'choice' | 'random' | 'off';
+  commissions: 'classic' | 'mixed';
+  objectiveBonus: number;
+  targetPrestige: number;
+  maxRounds: number;
+  sharedCoal: number;
 }
 
 export interface GameModule<S extends StateMeta, A, PublicView> {

@@ -5,6 +5,7 @@ import {
   type PublicState,
   type Seat,
   type Action,
+  type PlaytestConfig,
 } from "../../../packages/clockwork-rules/src/index";
 
 export const ROOMS_ENABLED =
@@ -156,7 +157,11 @@ export function useRoom() {
     pendingCommand.current = null;
     history.replaceState(null, "", location.pathname);
   }
-  async function connect(roomId?: string, invite?: string) {
+  async function connect(
+    roomId?: string,
+    invite?: string,
+    config?: Partial<PlaytestConfig>,
+  ) {
     if (!ROOMS_ENABLED) {
       setError(
         "Online rooms are not available on this site. Choose Practice or Pass & play to start a game.",
@@ -197,7 +202,10 @@ export function useRoom() {
             roomId,
             saved?.token ? { token: saved.token } : { invite },
           )
-        : await client.create("clockwork", { creatorKey: crypto.randomUUID() });
+        : await client.create("clockwork", {
+            creatorKey: crypto.randomUUID(),
+            config,
+          });
       bind(r, gen);
     } catch (e) {
       if (gen === generation.current) {

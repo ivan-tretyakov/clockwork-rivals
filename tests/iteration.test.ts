@@ -11,7 +11,12 @@ import {
   type Seat,
 } from "../packages/clockwork-rules/src/index";
 const fresh = () =>
-  setup({ seed: 1847, rulesVersion: VERSION, initiativeOverride: "P0" });
+  setup({
+    seed: 1847,
+    rulesVersion: VERSION,
+    initiativeOverride: "P0",
+    config: { objectives: "off" },
+  });
 const card = (definitionId: string, id = definitionId): Card => ({
   definitionId,
   id,

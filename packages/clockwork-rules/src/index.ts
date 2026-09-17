@@ -1,3 +1,13 @@
+import {
+  OBJECTIVES,
+  emptyMetrics,
+  objectiveProgress,
+  type ObjectiveId,
+  type ObjectiveMetrics,
+} from "./objectives";
+export { OBJECTIVES, objectiveProgress };
+import type { PlaytestConfig } from "../../../contracts/engine-contract";
+export type { PlaytestConfig };
 import catalogue from "../../../data/clockwork-rivals.json";
 import type {
   ClockworkAction,
@@ -78,7 +88,71 @@ export interface Event {
   phase: Phase;
   revision: number;
 }
+export const DEFAULT_CONFIG: PlaytestConfig = {
+  objectives: "choice",
+  commissions: "classic",
+  objectiveBonus: 2,
+  targetPrestige: 10,
+  maxRounds: 8,
+  sharedCoal: 3,
+};
+export interface PrivateSetup {
+  offers: Record<PlayerId, ObjectiveId[]>;
+}
+export function privateDeal(mode: PlaytestConfig["objectives"]): PrivateSetup {
+  const ids = Object.keys(OBJECTIVES) as ObjectiveId[];
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  const n = mode === "choice" ? 2 : mode === "random" ? 1 : 0;
+  return { offers: { P0: ids.slice(0, n), P1: ids.slice(n, n * 2) } };
+}
+export function gameConfig(
+  input: Partial<PlaytestConfig> = {},
+): PlaytestConfig {
+  const c = { ...DEFAULT_CONFIG, ...input };
+  if (
+    !["choice", "random", "off"].includes(c.objectives) ||
+    !["classic", "mixed"].includes(c.commissions) ||
+    !Number.isInteger(c.objectiveBonus) ||
+    c.objectiveBonus < 0 ||
+    c.objectiveBonus > 5 ||
+    !Number.isInteger(c.targetPrestige) ||
+    c.targetPrestige < 6 ||
+    c.targetPrestige > 20 ||
+    !Number.isInteger(c.maxRounds) ||
+    c.maxRounds < 4 ||
+    c.maxRounds > 12 ||
+    !Number.isInteger(c.sharedCoal) ||
+    c.sharedCoal < 1 ||
+    c.sharedCoal > 6
+  )
+    throw new Error("Invalid playtest configuration.");
+  return c;
+}
+export interface ObjectiveView {
+  offers: ObjectiveId[];
+  selected: ObjectiveId | null;
+  progress: { complete: boolean; text: string } | null;
+}
+export interface ObjectiveReveal {
+  selected: ObjectiveId | null;
+  complete: boolean;
+  progress: string;
+  bonus: number;
+}
 export interface State {
+  config: PlaytestConfig;
+  setupComplete: boolean;
+  privateSetup: PrivateSetup;
+  objectivesPrivate: Record<
+    PlayerId,
+    { selected: ObjectiveId | null; metrics: ObjectiveMetrics }
+  >;
+  objectiveReady: Record<PlayerId, boolean>;
+  revealedObjectives: Record<PlayerId, ObjectiveReveal> | null;
+  finalScores: Record<PlayerId, number> | null;
   game: "clockwork-rivals";
   rulesVersion: string;
   revision: number;
@@ -103,15 +177,26 @@ export interface State {
 }
 export type PublicState = Omit<
   State,
-  "seed" | "initialInitiative" | "partDeck" | "orderDeck"
-> & { partDeckCount: number; orderDeckCount: number };
+  | "seed"
+  | "initialInitiative"
+  | "partDeck"
+  | "orderDeck"
+  | "privateSetup"
+  | "objectivesPrivate"
+> & {
+  partDeckCount: number;
+  orderDeckCount: number;
+  objective?: ObjectiveView;
+};
 export type View = State | PublicState;
 export interface AcceptedAction {
   actor: PlayerId;
   action: ClockworkAction;
 }
 export interface Save {
-  formatVersion: 1;
+  formatVersion: 2;
+  privateSetup: PrivateSetup;
+  config: PlaytestConfig;
   rulesVersion: string;
   catalogueHash: string;
   seed: number;
@@ -172,9 +257,25 @@ function hash(text: string) {
   return (n >>> 0).toString(16);
 }
 export const CATALOGUE_HASH = hash(canonical(catalogue));
-export function setup(options: SetupOptions): State {
+export function setup(
+  options: SetupOptions & { privateSetup?: PrivateSetup },
+): State {
   if (options.rulesVersion !== VERSION || !Number.isFinite(options.seed))
     throw new Error("Unsupported rules version or seed.");
+  const config = gameConfig(options.config);
+  const hidden = structuredClone(
+    options.privateSetup ?? privateDeal(config.objectives),
+  );
+  const count =
+    config.objectives === "choice" ? 2 : config.objectives === "random" ? 1 : 0;
+  const candidates = [...hidden.offers.P0, ...hidden.offers.P1];
+  if (
+    hidden.offers.P0.length !== count ||
+    hidden.offers.P1.length !== count ||
+    new Set(candidates).size !== candidates.length ||
+    candidates.some((id) => !OBJECTIVES[id])
+  )
+    throw new Error("Invalid private objective deal.");
   const random = rng(options.seed);
   const rolled: PlayerId = random() < 0.5 ? "P0" : "P1";
   const initiative = options.initiativeOverride ?? rolled;
@@ -222,6 +323,25 @@ export function setup(options: SetupOptions): State {
     random,
   );
   return {
+    config,
+    privateSetup: hidden,
+    objectivesPrivate: {
+      P0: {
+        selected: config.objectives === "random" ? hidden.offers.P0[0] : null,
+        metrics: emptyMetrics(),
+      },
+      P1: {
+        selected: config.objectives === "random" ? hidden.offers.P1[0] : null,
+        metrics: emptyMetrics(),
+      },
+    },
+    setupComplete: config.objectives !== "choice",
+    objectiveReady: {
+      P0: config.objectives !== "choice",
+      P1: config.objectives !== "choice",
+    },
+    revealedObjectives: null,
+    finalScores: null,
     game: "clockwork-rivals",
     rulesVersion: VERSION,
     revision: 0,
@@ -234,7 +354,7 @@ export function setup(options: SetupOptions): State {
     status: "active",
     winner: null,
     players: { P0: player("P0"), P1: player("P1") },
-    sharedCoal: catalogue.setup.sharedCoalPerRound,
+    sharedCoal: config.sharedCoal,
     counts: { P0: 0, P1: 0 },
     passed: { P0: false, P1: false },
     market: partDeck.splice(0, catalogue.setup.marketSize),
@@ -403,6 +523,13 @@ export function productionPlan(
 }
 export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
   if (state.status !== "active" || state.activePlayer !== actor) return [];
+  if (!state.setupComplete) {
+    const offers =
+      "privateSetup" in state
+        ? state.privateSetup.offers[actor]
+        : (state.objective?.offers ?? []);
+    return offers.map((objective) => ({ type: "choose-objective", objective }));
+  }
   const p = state.players[actor];
   const actions: ClockworkAction[] = [];
   const full = p.grid.every(Boolean);
@@ -463,6 +590,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     action.type !== "concede" &&
     !(
       action.type === "set-plan" &&
+      state.setupComplete &&
       state.phase === "run" &&
       validPlan(state, actor, action.plan)
     ) &&
@@ -529,9 +657,25 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       .map((r) => `${v[r]} ${r}`)
       .join(", ");
   switch (action.type) {
+    case "choose-objective": {
+      s.objectivesPrivate[actor].selected = action.objective as ObjectiveId;
+      s.objectiveReady[actor] = true;
+      s.setupComplete = s.objectiveReady.P0 && s.objectiveReady.P1;
+      s.activePlayer = s.setupComplete ? s.initialInitiative : other(actor);
+      event(
+        "objective-ready",
+        `${names[actor]} locks a private objective.`,
+        {},
+        actor,
+      );
+      if (s.setupComplete)
+        event("setup", "Both objectives are locked. Round one begins.");
+      return { ok: true as const, state: s, events };
+    }
     case "concede":
       s.status = "finished";
       s.winner = other(actor);
+      scoreObjectives(s, true);
       s.activePlayer = null;
       event(
         "concede",
@@ -576,6 +720,8 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const amount = action.useValve ? 2 : 1;
       s.sharedCoal -= amount;
       p.resources.coal += amount;
+      s.objectivesPrivate[actor].metrics.coalByRound[s.round] =
+        (s.objectivesPrivate[actor].metrics.coalByRound[s.round] ?? 0) + amount;
       if (action.useValve) p.valveUsed = true;
       event(
         "coal",
@@ -591,6 +737,14 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const before = { ...p.resources };
       for (const step of plan.steps) {
         const effect = step.effect;
+        const metrics = s.objectivesPrivate[actor].metrics;
+        if (!metrics.activatedTypes.includes(step.definitionId))
+          metrics.activatedTypes.push(step.definitionId);
+        for (const r of RESOURCES)
+          metrics.produced[r] += Math.max(
+            0,
+            (effect.output[r] ?? 0) - (effect.overflow[r] ?? 0),
+          );
         event(
           "activate",
           `${names[actor]} runs ${PARTS[step.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
@@ -613,6 +767,15 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       }
       p.resources = plan.after;
       p.grid = plan.grid;
+      const metrics = s.objectivesPrivate[actor].metrics;
+      const netGears = p.resources.gears - before.gears;
+      metrics.bestGearGain = Math.max(metrics.bestGearGain, netGears);
+      if (
+        netGears >= 2 &&
+        !metrics.coalByRound[s.round] &&
+        !metrics.independentRounds.includes(s.round)
+      )
+        metrics.independentRounds.push(s.round);
       s.passed[actor] = true;
       event(
         "produce",
@@ -657,14 +820,16 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   ) {
     if (s.phase === "deliver") {
       if (
-        s.round >= LIMITS.maxRounds ||
-        s.players.P0.prestige >= LIMITS.targetPrestige ||
-        s.players.P1.prestige >= LIMITS.targetPrestige
+        s.round >= s.config.maxRounds ||
+        s.players.P0.prestige >= s.config.targetPrestige ||
+        s.players.P1.prestige >= s.config.targetPrestige
       ) {
+        scoreObjectives(s);
         const a = s.players.P0,
           b = s.players.P1;
         const difference =
-          a.prestige - b.prestige || a.resources.gears - b.resources.gears;
+          s.finalScores!.P0 - s.finalScores!.P1 ||
+          a.resources.gears - b.resources.gears;
         s.winner = difference > 0 ? "P0" : difference < 0 ? "P1" : "draw";
         s.status = "finished";
         s.activePlayer = null;
@@ -672,7 +837,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
           "finish",
           s.winner === "draw"
             ? "A perfect tie. Both workshops share the honors."
-            : `${names[s.winner]} wins with ${s.players[s.winner].prestige} prestige.`,
+            : `${names[s.winner]} wins with ${s.finalScores![s.winner]} final prestige (including private objectives).`,
           { winner: s.winner },
         );
         return { ok: true as const, state: s, events };
@@ -684,7 +849,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
         s.orders.push(s.orderDeck.shift()!);
       s.round++;
       s.initiative = other(s.initiative);
-      s.sharedCoal = catalogue.setup.sharedCoalPerRound;
+      s.sharedCoal = s.config.sharedCoal;
       for (const seat of ["P0", "P1"] as const) {
         s.players[seat].valveUsed = false;
         for (const c of s.players[seat].grid)
@@ -696,7 +861,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       s.phase = "draft";
       event(
         "round",
-        `Round ${s.round}. ${names[s.initiative]} has initiative. Coal refilled to 3.`,
+        `Round ${s.round}. ${names[s.initiative]} has initiative. Coal refilled to ${s.config.sharedCoal}.`,
       );
     } else s.phase = PHASES[PHASES.indexOf(s.phase) + 1];
     s.counts = { P0: 0, P1: 0 };
@@ -709,29 +874,81 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   } else s.activePlayer = done(other(actor)) ? actor : other(actor);
   return { ok: true as const, state: s, events };
 }
-export function project(s: State): PublicState {
+export function scoreObjectives(s: State, concession = false) {
+  const reveal = {} as Record<PlayerId, ObjectiveReveal>;
+  const scores = {} as Record<PlayerId, number>;
+  for (const seat of ["P0", "P1"] as const) {
+    const own = s.objectivesPrivate[seat];
+    const progress = own.selected
+      ? objectiveProgress(own.selected, own.metrics, s.players[seat])
+      : { complete: false, text: "No objective" };
+    const bonus =
+      !concession && progress.complete ? s.config.objectiveBonus : 0;
+    reveal[seat] = {
+      selected: own.selected,
+      complete: progress.complete,
+      progress: progress.text,
+      bonus,
+    };
+    scores[seat] = s.players[seat].prestige + bonus;
+  }
+  s.revealedObjectives = reveal;
+  s.finalScores = scores;
+}
+export function project(
+  s: State,
+  viewer: PlayerId | "spectator" = "spectator",
+): PublicState {
   const {
     seed: _seed,
     initialInitiative: _initiative,
     partDeck,
     orderDeck,
+    privateSetup,
+    objectivesPrivate,
     ...rest
   } = s;
+  const own = viewer === "spectator" ? null : objectivesPrivate[viewer];
   return structuredClone({
     ...rest,
     partDeckCount: partDeck.length,
     orderDeckCount: orderDeck.length,
+    ...(own && viewer !== "spectator" && s.status !== "finished"
+      ? {
+          objective: {
+            offers: own.selected ? [] : privateSetup.offers[viewer],
+            selected: own.selected,
+            progress: own.selected
+              ? objectiveProgress(own.selected, own.metrics, s.players[viewer])
+              : null,
+          },
+        }
+      : {}),
   });
+}
+export function publicReport(s: State | PublicState) {
+  const view =
+    "privateSetup" in s ? project(s) : (({ objective: _, ...rest }) => rest)(s);
+  return {
+    kind: "clockwork-public-report",
+    rulesVersion: VERSION,
+    state: view,
+    note: "Public report only. Private cards, offers, objective choices and private metrics are excluded. Local play resumes from this browser's autosave.",
+  };
 }
 export function replay(
   seed: number,
   initialInitiative: PlayerId,
   actions: AcceptedAction[],
+  privateSetup?: PrivateSetup,
+  config?: Partial<PlaytestConfig>,
 ): State {
   let state = setup({
     seed,
     rulesVersion: VERSION,
     initiativeOverride: initialInitiative,
+    privateSetup,
+    config,
   });
   for (const { actor, action } of actions) {
     const result = reduce(state, actor, action);
@@ -745,7 +962,9 @@ export function replay(
 }
 export function saveGame(state: State, actions: AcceptedAction[]): Save {
   return {
-    formatVersion: 1,
+    formatVersion: 2,
+    privateSetup: state.privateSetup,
+    config: state.config,
     rulesVersion: VERSION,
     catalogueHash: CATALOGUE_HASH,
     seed: state.seed,
@@ -761,14 +980,20 @@ export function loadGame(raw: string): Save {
       `This save uses rules ${save.rulesVersion ?? "unknown"}. Version ${VERSION} adds production plans and private objectives. Keep your old backup and start a new match.`,
     );
   if (
-    save.formatVersion !== 1 ||
+    save.formatVersion !== 2 ||
     save.rulesVersion !== VERSION ||
     save.catalogueHash !== CATALOGUE_HASH ||
     !Array.isArray(save.actions) ||
     save.actions.length > 1000
   )
     throw new Error("This save uses an unsupported rules catalogue or format.");
-  const state = replay(save.seed, save.initialInitiative, save.actions);
+  const state = replay(
+    save.seed,
+    save.initialInitiative,
+    save.actions,
+    save.privateSetup,
+    save.config,
+  );
   if (canonical(state) !== canonical(save.state))
     throw new Error(
       "Save validation failed. The snapshot does not match its replay.",
@@ -776,10 +1001,13 @@ export function loadGame(raw: string): Save {
   return { ...save, state };
 }
 export function chooseBotAction(s: View): ClockworkAction {
+  if ("privateSetup" in s) s = project(s, s.activePlayer!);
   const seat = s.activePlayer!;
   const p = s.players[seat];
   const actions = legalActions(s, seat);
   const value = (a: ClockworkAction) => {
+    if (a.type === "choose-objective")
+      return a.objective === "productive-shift" ? 10 : 5;
     if (a.type === "produce") return 1000;
     if (a.type === "pass") return -100;
     if (a.type === "reconfigure") return -50;

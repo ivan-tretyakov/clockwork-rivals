@@ -2982,3 +2982,152 @@ img {
     grid-template-columns: 1fr;
   }
 }
+
+.objective-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid #cfc5a7;
+  background: #f2eee0;
+  padding: 22px;
+  margin-bottom: 24px;
+  border-radius: 6px;
+}
+.objective-banner h2 {
+  font:
+    25px Georgia,
+    serif;
+  margin: 8px 0;
+}
+.objective-banner p {
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 740px;
+}
+.objective-banner small {
+  color: #76735f;
+}
+.objective-banner .button {
+  flex-shrink: 0;
+}
+.objective-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.objective-card {
+  padding: 25px;
+  border: 1px solid #b9b18e;
+  background: #f4f0df;
+  border-radius: 7px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+.objective-card:only-child {
+  grid-column: 1/-1;
+}
+.objective-symbol {
+  font:
+    60px Georgia,
+    serif;
+  color: #9d8250;
+  display: block;
+  margin: 4px 0 18px;
+}
+.objective-card h3 {
+  font:
+    28px Georgia,
+    serif;
+  margin: 14px 0;
+}
+.objective-card p {
+  font-size: 14px;
+  line-height: 1.65;
+}
+.objective-card .button {
+  margin-top: auto;
+}
+.objective-progress {
+  padding: 14px;
+  border: 1px solid #d6ceaf;
+  border-radius: 5px;
+  margin-top: 12px;
+}
+.objective-progress.complete {
+  background: #e1ead7;
+  border-color: #acc09f;
+}
+.objective-progress small {
+  font-size: 11px;
+  line-height: 1.5;
+  display: block;
+}
+.privacy-screen {
+  text-align: center;
+}
+.privacy-screen > span {
+  display: block;
+  font:
+    90px Georgia,
+    serif;
+  color: #9c8355;
+}
+.privacy-screen p {
+  margin: 20px 0 30px;
+  line-height: 1.7;
+}
+.objective-reveal article {
+  border-top: 1px solid #d2d5c4;
+  padding: 16px 0;
+}
+.objective-reveal h3 {
+  font:
+    23px Georgia,
+    serif;
+  margin: 10px 0;
+}
+.objective-reveal p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.objective-reveal strong {
+  font-size: 12px;
+  color: var(--teal);
+}
+.playtest-settings {
+  padding: 15px;
+  border: 1px solid #d6d9c8;
+  margin-bottom: 20px;
+  border-radius: 5px;
+}
+.playtest-settings summary {
+  cursor: pointer;
+}
+.playtest-settings select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #c7cbb9;
+  background: #fafaf4;
+  border-radius: 4px;
+  margin-top: 8px;
+  color: var(--teal);
+}
+@media (max-width: 700px) {
+  .objective-banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 18px;
+    gap: 12px;
+  }
+  .objective-cards {
+    grid-template-columns: 1fr;
+  }
+  .objective-card {
+    padding: 18px;
+  }
+  .objective-card h3 {
+    font-size: 25px;
+  }
+}

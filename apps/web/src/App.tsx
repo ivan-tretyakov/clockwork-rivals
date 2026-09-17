@@ -12,6 +12,11 @@ import {
   legalActions,
   preview,
   productionPlan,
+  project,
+  publicReport,
+  OBJECTIVES,
+  DEFAULT_CONFIG,
+  type PlaytestConfig,
   other,
   position,
   replay,
@@ -27,6 +32,7 @@ import {
   type AcceptedAction,
   type Reserve,
 } from "../../../packages/clockwork-rules/src/index";
+import { ObjectiveCards } from "./ObjectiveCards";
 import { ProductionControls } from "./ProductionControls";
 import { useRoom, ROOMS_ENABLED } from "./useRoom";
 import "./style.css";
@@ -63,7 +69,7 @@ function initialGame() {
       };
     }
   } catch (e) {
-    warning = `Saved game could not be loaded: ${(e as Error).message}. Export the stored save from the game menu if needed.`;
+    warning = `Saved game could not be loaded: ${(e as Error).message}. Your stored backup is preserved. Start a new match to use the current rules.`;
   }
   return {
     state: setup({ seed: randomSeed(), rulesVersion: VERSION }),
@@ -223,13 +229,29 @@ export default function App() {
   const [mode, setMode] = useState<Mode>(initial.mode);
   const net = useRoom();
   const online = net.status !== "offline";
-  const state: View = online && net.snapshot ? net.snapshot.state : local;
+  const localViewer: Seat =
+    mode === "practice" ? "P0" : (local.activePlayer ?? "P0");
+  const state =
+    online && net.snapshot ? net.snapshot.state : project(local, localViewer);
   const seat: Seat = online
     ? (net.welcome?.seat ?? "P0")
     : mode === "practice"
       ? "P0"
       : (state.activePlayer ?? "P0");
   const rival = other(seat);
+  const [objectiveOpen, setObjectiveOpen] = useState(false);
+  const [privacySeat, setPrivacySeat] = useState<Seat | null>(null);
+  const [newConfig, setNewConfig] = useState<PlaytestConfig>({
+    ...DEFAULT_CONFIG,
+  });
+  const handoffRequired =
+    !online &&
+    mode === "hotseat" &&
+    state.status === "active" &&
+    privacySeat !== seat;
+  useEffect(() => {
+    setObjectiveOpen(false);
+  }, [seat, net.snapshot?.matchId]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [moving, setMoving] = useState<number | null>(null);
   const [dialog, setDialog] = useState<
@@ -271,7 +293,8 @@ export default function App() {
     state.status === "active" &&
     state.activePlayer === seat &&
     connected &&
-    !net.pending;
+    !net.pending &&
+    !handoffRequired;
   const legal = canPlay ? legalActions(state, seat) : [];
   const selectedCard =
     selection?.kind === "market"
@@ -334,7 +357,7 @@ export default function App() {
       );
     } catch {
       setNotice(
-        "Autosave is unavailable in this browser. Use Game menu → Export save.",
+        "Autosave is unavailable in this browser. Keep this tab open to retain your match.",
       );
     }
   }, [local, actions, mode, storageBlocked]);
@@ -381,6 +404,7 @@ export default function App() {
     }
   }
   function act(action: Action, actor: Seat = seat) {
+    if (action.type === "choose-objective") setObjectiveOpen(false);
     if (locked.current) return;
     if (online) {
       locked.current = true;
@@ -406,9 +430,16 @@ export default function App() {
     net.leave();
     setMode(nextMode);
     setLocal(
-      setup({ seed, rulesVersion: VERSION, initiativeOverride: initiative }),
+      setup({
+        seed,
+        rulesVersion: VERSION,
+        initiativeOverride: initiative,
+        config: newConfig,
+      }),
     );
     setActions([]);
+    setPrivacySeat(null);
+    setObjectiveOpen(false);
     setSelection(null);
     setMoving(null);
     setFinishedDismissed(false);
@@ -422,10 +453,18 @@ export default function App() {
     if (mode === "practice") {
       while (count >= 0 && actions[count].actor !== "P0") count--;
     }
-    if (count < 0) return;
+    if (count < 0 || actions[count].action.type === "choose-objective") return;
     const next = actions.slice(0, count);
     setActions(next);
-    setLocal(replay(local.seed, local.initialInitiative, next));
+    setLocal(
+      replay(
+        local.seed,
+        local.initialInitiative,
+        next,
+        local.privateSetup,
+        local.config,
+      ),
+    );
     setFinishedDismissed(false);
   }
   function download(value: unknown, name: string) {
@@ -453,7 +492,12 @@ export default function App() {
     }
   }
   function chooseSlot(index: number, owner: Seat) {
-    if (owner === seat && canPlay && state.phase === "draft") {
+    if (
+      owner === seat &&
+      canPlay &&
+      state.setupComplete &&
+      state.phase === "draft"
+    ) {
       if (moving !== null) {
         const action = legal.find(
           (a) =>
@@ -691,9 +735,9 @@ export default function App() {
             </span>
             <div className="round-count">
               Round <b>{state.round}</b>
-              <span>/ 8</span>
+              <span>/ {state.config.maxRounds}</span>
               <div className="round-dots">
-                {Array.from({ length: 8 }, (_, i) => (
+                {Array.from({ length: state.config.maxRounds }, (_, i) => (
                   <i key={i} className={i < state.round ? "filled" : ""} />
                 ))}
               </div>
@@ -806,7 +850,9 @@ export default function App() {
           <span className="turn-instruction">
             {runFinished
               ? "Production complete. Delivery starts automatically when your rival is done."
-              : PHASE_COPY[state.phase]}
+              : !state.setupComplete
+                ? "Inspect the public market, then choose your private objective. Both choices lock before Draft."
+                : PHASE_COPY[state.phase]}
           </span>
           <span className="turn-allowance">
             {state.phase === "run"
@@ -1046,6 +1092,41 @@ export default function App() {
               )}
             </section>
           )}
+        {state.config.objectives !== "off" && state.status !== "finished" && (
+          <section className="objective-banner">
+            <div>
+              <span className="step-label">PRIVATE OBJECTIVES</span>
+              <h2>
+                {!state.setupComplete
+                  ? "Choose your reason to rival."
+                  : "Your secret ambition"}
+              </h2>
+              <p>
+                {!state.setupComplete
+                  ? "Inspect the market and commissions, then choose one of two cards privately. Draft begins after both choices lock."
+                  : `One private objective is worth +${state.config.objectiveBonus} final prestige. Public target: ${state.config.targetPrestige}; hidden bonuses are added only at the end.`}
+              </p>
+              <small>
+                Teal: {state.objectiveReady.P0 ? "ready" : "choosing"} · Copper:{" "}
+                {state.objectiveReady.P1 ? "ready" : "choosing"}
+              </small>
+            </div>
+            <button
+              className="button outline"
+              disabled={
+                handoffRequired ||
+                (!state.setupComplete &&
+                  (!canPlay || state.objectiveReady[seat]))
+              }
+              onClick={() => setObjectiveOpen(true)}
+            >
+              {state.objectiveReady[seat]
+                ? "Inspect private objective"
+                : "Choose private objective"}{" "}
+              ↗
+            </button>
+          </section>
+        )}
         <div className="shared-table">
           <section className="market-section">
             <div className="section-heading">
@@ -1053,10 +1134,8 @@ export default function App() {
                 Parts market <span>01—10</span>
               </h2>
               <span>
-                {"partDeckCount" in state
-                  ? state.partDeckCount
-                  : state.partDeck.length}{" "}
-                in deck <span className="deck-icon">▱</span>
+                {state.partDeckCount} in deck{" "}
+                <span className="deck-icon">▱</span>
               </span>
             </div>
             <div className="market-row">
@@ -1104,7 +1183,7 @@ export default function App() {
                   <h2>Guild commissions</h2>
                   <span>
                     <Icon name="prestige" />
-                    Race to 10
+                    Target {state.config.targetPrestige}
                   </span>
                 </div>
                 <div className="orders-row">
@@ -1143,9 +1222,7 @@ export default function App() {
                   })}
                   {!state.orders.length && (
                     <p>
-                      {("orderDeckCount" in state
-                        ? state.orderDeckCount
-                        : state.orderDeck.length) > 0
+                      {state.orderDeckCount > 0
                         ? "New commissions arrive next round."
                         : "All guild commissions have been claimed."}
                     </p>
@@ -1163,7 +1240,10 @@ export default function App() {
                 className="coal-pieces"
                 aria-label={`${state.sharedCoal} coal available`}
               >
-                {[0, 1, 2].map((i) => (
+                {Array.from(
+                  { length: state.config.sharedCoal },
+                  (_, i) => i,
+                ).map((i) => (
                   <span
                     key={i}
                     className={
@@ -1264,7 +1344,9 @@ export default function App() {
                     <p className="rules-text">{inspected.rulesText}</p>
                     {selection?.kind === "market" ? (
                       <div className="inspection-action">
-                        {canPlay && state.phase === "draft" ? (
+                        {canPlay &&
+                        state.setupComplete &&
+                        state.phase === "draft" ? (
                           <>
                             <span className="step-label">NEXT STEP</span>
                             <p>
@@ -1409,7 +1491,7 @@ export default function App() {
                 {state.phase !== "run" && state.phase !== "deliver" && (
                   <button
                     className="button outline"
-                    disabled={!canPlay}
+                    disabled={!canPlay || !state.setupComplete}
                     onClick={() => act({ type: "pass" })}
                   >
                     Pass {state.phase} <span>→</span>
@@ -1494,7 +1576,11 @@ export default function App() {
           <span>
             CLOCKWORK RIVALS <span> / </span> PROTOTYPE v{VERSION}
           </span>
-          <span>10 prestige to win · 8 rounds · Every gear counts.</span>
+          <span>
+            {state.config.targetPrestige} public prestige ·{" "}
+            {state.config.maxRounds} rounds · +{state.config.objectiveBonus}{" "}
+            private objective
+          </span>
           <div>
             <button onClick={() => setDialog("feedback")}>
               Playtest notes
@@ -1503,6 +1589,43 @@ export default function App() {
           </div>
         </footer>
       </main>
+      {handoffRequired && (
+        <Modal title={`Pass the screen to ${NAMES[seat]}`} close={() => {}}>
+          <div className="privacy-screen">
+            <span aria-hidden="true">◇</span>
+            <p>
+              Only {NAMES[seat]} should look at their private objective. The
+              public table is safe to share.
+            </p>
+            <button
+              className="button full"
+              onClick={() => setPrivacySeat(seat)}
+            >
+              I’m {NAMES[seat]} · continue →
+            </button>
+          </div>
+        </Modal>
+      )}
+      {objectiveOpen && !handoffRequired && (
+        <Modal
+          title="Your private objective"
+          close={() => setObjectiveOpen(false)}
+          wide
+        >
+          <ObjectiveCards
+            objective={state.objective}
+            bonus={state.config.objectiveBonus}
+            canChoose={canPlay && !state.setupComplete}
+            choose={(objective) => act({ type: "choose-objective", objective })}
+          />
+          <button
+            className="text-button full"
+            onClick={() => setObjectiveOpen(false)}
+          >
+            Hide private card
+          </button>
+        </Modal>
+      )}
       {dialog === "new" && (
         <Modal title="A new rivalry" close={close}>
           <p className="modal-intro">
@@ -1547,6 +1670,72 @@ export default function App() {
               rooms are not available on this site.
             </p>
           )}
+          <details className="playtest-settings">
+            <summary>Playtest rules</summary>
+            <label className="field-label">
+              Private objectives
+              <select
+                value={newConfig.objectives}
+                onChange={(e) =>
+                  setNewConfig({
+                    ...newConfig,
+                    objectives: e.target.value as PlaytestConfig["objectives"],
+                  })
+                }
+              >
+                <option value="choice">Choose one of two (default)</option>
+                <option value="random">One randomly assigned</option>
+                <option value="off">Off · comparison game</option>
+              </select>
+            </label>
+            <label className="field-label">
+              Commissions
+              <select
+                value={newConfig.commissions}
+                onChange={(e) =>
+                  setNewConfig({
+                    ...newConfig,
+                    commissions: e.target
+                      .value as PlaytestConfig["commissions"],
+                  })
+                }
+              >
+                <option value="classic">Classic · gears only</option>
+                <option value="mixed">Mixed resource recipes</option>
+              </select>
+            </label>
+            {(
+              [
+                ["targetPrestige", "Public prestige target", 6, 20],
+                ["maxRounds", "Round limit", 4, 12],
+                ["sharedCoal", "Shared coal per round", 1, 6],
+                ["objectiveBonus", "Objective bonus", 0, 5],
+              ] as const
+            ).map(([key, label, min, max]) => (
+              <label className="field-label" key={key}>
+                {label}
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  value={newConfig[key]}
+                  onChange={(e) =>
+                    setNewConfig({
+                      ...newConfig,
+                      [key]: Math.max(
+                        min,
+                        Math.min(max, Number(e.target.value)),
+                      ),
+                    })
+                  }
+                />
+              </label>
+            ))}
+            <p className="subtle">
+              Experimental values. Keep the defaults when comparing objective
+              and commission changes.
+            </p>
+          </details>
           {newMode !== "online" && (
             <label className="field-label">
               Seed <span>optional · reproduce the same deal</span>
@@ -1567,7 +1756,7 @@ export default function App() {
             onClick={() => {
               if (newMode === "online") {
                 close();
-                void net.connect();
+                void net.connect(undefined, undefined, newConfig);
               } else
                 newGame(
                   newMode,
@@ -1636,9 +1825,12 @@ export default function App() {
           <div className="rule-callout">
             <h3>Make something worthy of the guild.</h3>
             <p>
-              Reach 10 prestige to trigger the end after both Delivery
-              opportunities, or play all 8 rounds. Highest prestige wins, then
-              most unspent gears. Equal on both is a draw.
+              The public prestige target or round limit triggers the end after
+              both Delivery opportunities. Then both private objectives are
+              revealed and completed objectives add the configured bonus. Final
+              prestige determines the winner, then unspent gears. A hidden bonus
+              can change the winner; concession always awards the rival the
+              match.
             </p>
             <p>
               Alternate actions within each phase. Passing ends your
@@ -1694,35 +1886,16 @@ export default function App() {
             <button
               onClick={() =>
                 download(
-                  online
-                    ? {
-                        rulesVersion: VERSION,
-                        matchId: net.snapshot?.matchId,
-                        state,
-                      }
-                    : saveGame(local, actions),
-                  `clockwork-${online ? "public-log" : "save"}-${Date.now()}.json`,
+                  publicReport(state),
+                  `clockwork-public-report-${Date.now()}.json`,
                 )
               }
             >
-              Export {online ? "public match log" : "save & replay"}{" "}
-              <span>↓</span>
+              Export public match report <span>↓</span>
             </button>
             {!online && (
               <button onClick={() => importInput.current?.click()}>
                 Import a saved game <span>↑</span>
-              </button>
-            )}
-            {storageBlocked && (
-              <button
-                onClick={() =>
-                  download(
-                    localStorage.getItem(SAVE_KEY),
-                    "clockwork-unreadable-save.json",
-                  )
-                }
-              >
-                Export unreadable stored save
               </button>
             )}
             <button
@@ -1769,7 +1942,7 @@ export default function App() {
           <p className="subtle">
             {online
               ? "Invite links can claim the open rival seat. Your private reconnect credential stays in this browser."
-              : "A save contains the deal, every accepted move and the current board. Imports verify the entire replay."}
+              : "Public reports omit private cards and cannot resume a match. Autosave keeps the full game in this browser. Imports require a complete version 0.2 private backup; older saves are rejected."}
           </p>
         </Modal>
       )}
@@ -1896,13 +2069,44 @@ export default function App() {
                 <div key={p}>
                   <Owner seat={p} />
                   <h3>{NAMES[p]}</h3>
-                  <strong>{state.players[p].prestige}</strong>
+                  <strong>
+                    {state.finalScores?.[p] ?? state.players[p].prestige}
+                  </strong>
                   <span>
-                    prestige · {state.players[p].resources.gears} gears
+                    {state.players[p].prestige} public +{" "}
+                    {state.revealedObjectives?.[p].bonus ?? 0} objective ·{" "}
+                    {state.players[p].resources.gears} gears
                   </span>
                 </div>
               ))}
             </div>
+            {state.revealedObjectives && (
+              <div className="objective-reveal">
+                {(["P0", "P1"] as const).map((owner) => {
+                  const reveal = state.revealedObjectives![owner];
+                  return (
+                    <article key={owner}>
+                      <span className="step-label">
+                        {NAMES[owner]} · OBJECTIVE REVEALED
+                      </span>
+                      <h3>
+                        {reveal.selected
+                          ? OBJECTIVES[reveal.selected].title
+                          : "No objective"}
+                      </h3>
+                      <p>
+                        {reveal.selected
+                          ? OBJECTIVES[reveal.selected].description
+                          : "Objective comparison mode"}
+                      </p>
+                      <strong>
+                        {reveal.progress} · +{reveal.bonus} prestige
+                      </strong>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
             <p className="subtle centered">
               {state.log.at(-1)?.type === "concede"
                 ? state.log.at(-1)?.text
