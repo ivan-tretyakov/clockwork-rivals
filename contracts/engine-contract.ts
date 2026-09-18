@@ -1,33 +1,44 @@
-/** Proposed contracts only. This file contains no game implementation. */
-export type PlayerId = 'P0' | 'P1';
-export type GameId = 'clockwork-rivals' | 'living-frontier';
+/** Shared transport contracts: Clockwork 0.3; Living Frontier remains proposed. */
+export type PlayerId = "P0" | "P1";
+export type GameId = "clockwork-rivals" | "living-frontier";
 export type InstanceId = string;
 export type DefinitionId = string;
-export type TileId = 'H0' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6';
-export type Terrain = 'meadow' | 'wetland' | 'woodland';
-export type Resource = 'coal' | 'steam' | 'work' | 'gears';
+export type TileId = "H0" | "H1" | "H2" | "H3" | "H4" | "H5" | "H6";
+export type Terrain = "meadow" | "wetland" | "woodland";
+export type Resource = "coal" | "steam" | "work" | "gears";
 export type GridSlot = { row: number; column: number };
 
 export type ClockworkAction =
-  | { type: 'draft-install'; marketInstance: InstanceId; slot: GridSlot; replace?: InstanceId }
-  | { type: 'reconfigure'; from: GridSlot; to: GridSlot }
-  | { type: 'take-coal'; useValve: boolean }
-  | { type: 'activate'; instance: InstanceId }
-  | { type: 'produce' }
-  | { type: 'set-plan'; plan: { instance: InstanceId; enabled: boolean }[] }
-  | { type: 'choose-objective'; objective: DefinitionId }
-  | { type: 'deliver'; commission: InstanceId }
-  | { type: 'pass' }
-  | { type: 'concede' };
+  | { type: "acquire-market"; instance: InstanceId; discard?: InstanceId }
+  | { type: "draw-blind" }
+  | { type: "keep-blind"; instance: InstanceId; discard?: InstanceId }
+  | { type: "install"; instance: InstanceId; slot?: number }
+  | { type: "take-coal" }
+  | { type: "produce" }
+  | { type: "set-stations"; enabled: [boolean, boolean, boolean] }
+  | { type: "choose-objective"; objective: DefinitionId }
+  | { type: "deliver"; commission: InstanceId }
+  | { type: "pass" }
+  | { type: "concede" };
 
 export type FrontierAction =
-  | { type: 'draft'; marketInstance: InstanceId; discardReserve?: InstanceId }
-  | { type: 'plant'; instance: InstanceId; tile: TileId; useMoss: boolean; replace?: InstanceId }
-  | { type: 'install-support'; instance: InstanceId; replace?: InstanceId }
-  | { type: 'basic-move'; organism: InstanceId; to: TileId }
-  | { type: 'play-adaptation'; instance: InstanceId; target: { tile: TileId } | { organism: InstanceId; to: TileId } }
-  | { type: 'pass' }
-  | { type: 'concede' };
+  | { type: "draft"; marketInstance: InstanceId; discardReserve?: InstanceId }
+  | {
+      type: "plant";
+      instance: InstanceId;
+      tile: TileId;
+      useMoss: boolean;
+      replace?: InstanceId;
+    }
+  | { type: "install-support"; instance: InstanceId; replace?: InstanceId }
+  | { type: "basic-move"; organism: InstanceId; to: TileId }
+  | {
+      type: "play-adaptation";
+      instance: InstanceId;
+      target: { tile: TileId } | { organism: InstanceId; to: TileId };
+    }
+  | { type: "pass" }
+  | { type: "concede" };
 
 /** No client-supplied actor. Server binds actor from authenticated seat. */
 export interface CommandEnvelope<A> {
@@ -52,20 +63,29 @@ export interface StateMeta {
   phase: string;
   initiative: PlayerId;
   activePlayer: PlayerId | null;
-  status: 'active' | 'finished';
-  winner: PlayerId | 'draw' | null;
+  status: "active" | "finished";
+  winner: PlayerId | "draw" | null;
 }
 
 export type RuleError =
-  | 'MATCH_FINISHED' | 'WRONG_TURN' | 'WRONG_PHASE' | 'UNKNOWN_INSTANCE'
-  | 'NOT_OWNER' | 'INSUFFICIENT_RESOURCES' | 'ILLEGAL_TARGET'
-  | 'CAPACITY_EXCEEDED' | 'ALREADY_USED' | 'ACTION_LIMIT' | 'INVALID_ACTION';
+  | "MATCH_FINISHED"
+  | "WRONG_TURN"
+  | "WRONG_PHASE"
+  | "UNKNOWN_INSTANCE"
+  | "NOT_OWNER"
+  | "INSUFFICIENT_RESOURCES"
+  | "ILLEGAL_TARGET"
+  | "CAPACITY_EXCEEDED"
+  | "ALREADY_USED"
+  | "ACTION_LIMIT"
+  | "INVALID_ACTION";
 
 export type ReduceResult<S> =
   | { ok: true; state: S; events: GameEvent[] }
   | { ok: false; state: S; error: RuleError; message: string };
 
 export interface SetupOptions {
+  /** Public identifier only. Hidden deals use independent authoritative entropy. */
   seed: number;
   rulesVersion: string;
   /** Used by agreed rematches to alternate the initial player. */
@@ -73,11 +93,8 @@ export interface SetupOptions {
   config?: Partial<PlaytestConfig>;
 }
 export interface PlaytestConfig {
-  objectives: 'choice' | 'random' | 'off';
-  commissions: 'classic' | 'mixed';
   objectiveBonus: number;
   targetPrestige: number;
-  maxRounds: number;
   sharedCoal: number;
 }
 
@@ -86,7 +103,7 @@ export interface GameModule<S extends StateMeta, A, PublicView> {
   legalActions(state: S, actor: PlayerId): A[];
   reduce(state: S, actor: PlayerId, action: A): ReduceResult<S>;
   /** Must remove future deck order, seed/PRNG state and private session data. */
-  project(state: S, viewer: PlayerId | 'spectator'): PublicView;
+  project(state: S, viewer: PlayerId | "spectator"): PublicView;
 }
 
 export interface CardInstance {

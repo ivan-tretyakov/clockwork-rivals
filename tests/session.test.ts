@@ -9,7 +9,7 @@ import {
   type Action,
 } from "../packages/clockwork-rules/src/index";
 const room = () => {
-  const r = new Session("test-room", "creator-secret", undefined, undefined, {objectives:"off"});
+  const r = new Session("test-room", "creator-secret");
   r.join("P0");
   r.join("P1");
   return r;
@@ -42,7 +42,7 @@ describe("Authoritative private sessions", () => {
   it("deduplicates accepted commands before revision checks, rejects changed payload", () => {
     const r = room();
     const actor = r.data.state.activePlayer!;
-    const c = envelope(r, { type: "pass" });
+    const c = envelope(r, chooseBotAction(r.data.state));
     expect(r.command(actor, c).ok).toBe(true);
     expect(r.command(actor, c)).toMatchObject({
       ok: true,
@@ -122,7 +122,10 @@ describe("Authoritative private sessions", () => {
     const before = canonical(r.data);
     fail = true;
     expect(
-      r.command(r.data.state.activePlayer!, envelope(r, { type: "pass" })).ok,
+      r.command(
+        r.data.state.activePlayer!,
+        envelope(r, chooseBotAction(r.data.state)),
+      ).ok,
     ).toBe(false);
     expect(canonical(r.data)).toBe(before);
   });
@@ -154,10 +157,16 @@ describe("Authoritative private sessions", () => {
       const s = r.data.state;
       const c = envelope(r, chooseBotAction(s));
       expect(r.command(s.activePlayer!, c).ok).toBe(true);
-      expect(r.data.actions.length).toBeLessThan(160);
+      expect(r.data.actions.length).toBeLessThan(800);
     }
     expect(
-      replay(r.data.state.seed, r.data.state.initialInitiative, r.data.actions, r.data.state.privateSetup, r.data.state.config),
+      replay(
+        r.data.state.seed,
+        r.data.state.initialInitiative,
+        r.data.actions,
+        r.data.state.privateSetup,
+        r.data.state.config,
+      ),
     ).toEqual(r.data.state);
   });
 });

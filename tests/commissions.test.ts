@@ -13,7 +13,7 @@ import {
   type State,
   type Action,
   type AcceptedAction,
-} from "../packages/clockwork-rules/src/index";
+} from "../packages/clockwork-rules/src/legacy-v2";
 const fresh = () =>
   setup({
     seed: 1847,

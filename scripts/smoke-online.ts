@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { Client, type Room } from "@colyseus/sdk";
 import {
   VERSION,
+  publicReport,
   chooseBotAction,
   type PublicState,
   type Seat,
@@ -189,6 +190,76 @@ try {
   console.log(
     "PASS actual server restart restores room, state, credentials, accepted acknowledgements",
   );
+  // Complete setup, begin a blind acquisition, then restart with the private choice unresolved.
+  let chooser = host.snapshot!.state.activePlayer === "P0" ? host : guest;
+  let reply = await send(
+    chooser,
+    command(chooser, chooseBotAction(chooser.snapshot!.state)),
+  );
+  assert.equal(reply.ok, true);
+  await until(
+    () =>
+      host.snapshot!.state.revision === reply.revision &&
+      guest.snapshot!.state.revision === reply.revision,
+    "Setup did not synchronize",
+  );
+  chooser = host.snapshot!.state.activePlayer === "P0" ? host : guest;
+  const blindSeat = chooser.welcome!.seat;
+  const drawCommand = command(chooser, { type: "draw-blind" });
+  reply = await send(chooser, drawCommand);
+  assert.equal(reply.ok, true);
+  await until(
+    () =>
+      host.snapshot!.state.revision === reply.revision &&
+      guest.snapshot!.state.revision === reply.revision,
+    "Blind draw did not synchronize",
+  );
+  const pendingRevision = reply.revision;
+  const privateChoices = structuredClone(chooser.snapshot!.state.blindChoices!);
+  assert.equal(privateChoices.length, 2);
+  const nonOwner = blindSeat === "P0" ? guest : host;
+  for (const card of privateChoices)
+    assert.equal(JSON.stringify(nonOwner.snapshot).includes(card.id), false);
+  assert.equal((await send(chooser, drawCommand)).duplicate, true);
+  assert.equal(
+    (await send(chooser, command(chooser, { type: "draw-blind" }))).ok,
+    false,
+  );
+  await stop();
+  await start();
+  host = await join(id, { token: hostCredential.token });
+  opened.push(host);
+  guest = await join(id, { token: guestCredential.token });
+  opened.push(guest);
+  await until(
+    () => host.snapshot!.connected.P1,
+    "Blind choice room did not reconnect",
+  );
+  chooser = blindSeat === "P0" ? host : guest;
+  assert.equal(chooser.snapshot!.state.revision, pendingRevision);
+  assert.deepEqual(chooser.snapshot!.state.blindChoices, privateChoices);
+  for (const card of privateChoices)
+    assert.equal(
+      JSON.stringify((blindSeat === "P0" ? guest : host).snapshot).includes(
+        card.id,
+      ),
+      false,
+    );
+  reply = await send(
+    chooser,
+    command(chooser, { type: "keep-blind", instance: privateChoices[0].id }),
+  );
+  assert.equal(reply.ok, true);
+  await until(
+    () =>
+      host.snapshot!.state.revision === reply.revision &&
+      guest.snapshot!.state.revision === reply.revision,
+    "Private keep did not synchronize",
+  );
+  assert.equal(chooser.snapshot!.state.hand![0].id, privateChoices[0].id);
+  console.log(
+    "PASS pending blind draw survives an actual server restart without redraw or opponent disclosure",
+  );
   while (host.snapshot!.state.status === "active") {
     const s = host.snapshot!.state;
     const v = s.activePlayer === "P0" ? host : guest;
@@ -208,7 +279,10 @@ try {
       "Move did not synchronize",
     );
   }
-  assert.deepEqual(host.snapshot!.state, guest.snapshot!.state);
+  assert.deepEqual(
+    publicReport(host.snapshot!.state),
+    publicReport(guest.snapshot!.state),
+  );
   const oldMatch = host.snapshot!.matchId;
   const oldInitiative = host.snapshot!.state.initiative;
   console.log(

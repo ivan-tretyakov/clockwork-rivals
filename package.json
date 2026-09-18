@@ -1,6 +1,6 @@
 {
   "name": "clockwork-rivals",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -29,6 +29,7 @@
     "@colyseus/core": "^0.18.14",
     "@colyseus/sdk": "^0.18.2",
     "@colyseus/ws-transport": "^0.18.2",
+    "@noble/hashes": "2.4.0",
     "express": "^5.2.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

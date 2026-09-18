@@ -1,30 +1,33 @@
 # Clockwork prototype implementation
 
-Current rules are **0.2.0**. See [the iteration record](ITERATION-02.md) for controlled production, private objective setup/scoring, installation previews and mixed commissions. The prepared v0.1 JSON and Living Frontier handoff are unchanged. `legacy-v1.ts` isolates the historical reducer and its replay tests; the 0.2 client rejects older saves explicitly and preserves the previous browser-storage key.
+Current rules are **0.3.0**. See [the iteration record](ITERATION-03.md) for the station redesign. The prepared v0.1 JSON and Living Frontier handoff remain unchanged. Historical v0.1/v0.2 reducers are isolated from the browser/server runtime and retain regression tests.
 
-Production plans and authoritative private setup are persisted with each 0.2 game. Online snapshots are generated per authenticated seat. Opponent offers, selections and metrics never enter the owner's client projection, spectator view, public log or report before final reveal. Local hotseat secrecy relies on handoff screens, not protection against browser-memory inspection. Complete local autosaves and server records are private; downloadable reports exclude both players' private cards before reveal.
+## Current implementation
 
-| Milestone | Delivered |
-|---|---|
-| C0 — Rules | Pure TypeScript seeded setup, all catalogue effects, atomic validation, phase/action limits, scoring, hidden-deck projection, deterministic replay, versioned private saves, acceptance and invariant tests. |
-| C1 — Local play | Full hotseat game, legal placement targets, move/swap/full-grid replacement, machine inspection and reserve/adjacency previews, confirmation, journal, autosave/reload, verified backup import and redacted export, undo, seeded new games and rematches. |
-| C2 — Presentation | Responsive ivory/teal/copper table, all ten machine illustrations, three original SVG commission drawings, live resource symbols, phase guidance, catalogue, rulebook, optional chime, count feedback, reduced-motion support, keyboard-native controls and modal focus handling. Practice Automaton included. |
-| C3 — Private rooms | Colyseus server, server-bound seats and credentials, invitation links, authoritative validation, revision checks, persistent accepted-command deduplication, SQLite durability, reconnect/pause/120-second forfeit, off-turn concession, mutual rematch, 24-hour retention, rate limits, production build and Docker configuration. |
-| C4 — Playtest preparation | Local notes and replay/public-log exports, reproducible import fixture, validation record and Clockwork-only human session guide. Human balance and duration testing remain outstanding. |
+- Three stations, one core and two distinct enhancements each. Free private-hand acquisition and separate gear-paid installation. Core replacement preserves enhancements; paid cards recycle and starter cores leave play.
+- Six-card age-ordered market, private draw-two choice, hand limit three, oldest-two turnover and separate parts/commission recycling.
+- Shared pure production resolver: full-input affordability, fixed station order, switches, refunds, generated versus retained output, caps and conditional-bonus attribution.
+- Six commission definitions and six objectives. Both Delivery opportunities finish before an 18-public-prestige race ends; +3 objective bonuses are evaluated before the winner. No round cutoff.
+- Explicit per-seat projection. Private entropy, draw/recycle state, hands, blind offers, private discards and objective details are omitted from opponent/spectator/public-report views. Public acquisitions remain observable. Local hotseat uses private screens; browser-memory secrecy is not claimed.
+- Blind draw persists as a pending acquisition. Keeping a card and any required hand-limit discard finishes the acquisition; pending choices cannot be cancelled, passed or redrawn. Command deduplication and reconnect preserve the same offers.
+- Responsive station table, keyboard controls, compatible installation-slot highlights, cost-deducted previews, production/payment guidance, catalogue, field guide, nine enhancement SVG illustrations, existing machine artwork, optional chime, journal and local notes.
+- Colyseus server, seat-bound credentials, invites, revision validation, durable acknowledgements, SQLite, pause/reconnect, 120-second forfeit, mutual rematch and 24-hour room retention.
 
 ## Source map
 
-- `packages/clockwork-rules/src/index.ts`: deterministic rules, projection, replay and practice policy.
-- `apps/web/src/App.tsx`: table, actions, inspection, local persistence and dialogs.
-- `apps/web/src/useRoom.ts`: private room connection, credentials, command retry and recovery.
-- `apps/web/src/style.css`: responsive layout, typography, owner states and reduced motion.
-- `apps/server/src/session.ts`: authoritative seat/session state and command acknowledgements.
-- `apps/server/src/index.ts`: Colyseus transport, SQLite room retention and static hosting.
-- `tests/`: rules/session tests and a replay-verified round-three import fixture.
-- `scripts/smoke-online.ts`: two-client WebSocket integration with a real server restart.
+- `packages/clockwork-rules/src/catalogue.ts`: current cores, enhancements, commissions and objectives.
+- `packages/clockwork-rules/src/index.ts`: reducer, production resolver, projection, private replay and practice policy.
+- `packages/clockwork-rules/src/legacy-v*.ts`: isolated historical implementations.
+- `apps/web/src/App.tsx`: workflow, private dialogs, local persistence and room controls.
+- `apps/web/src/GamePieces.tsx`: station board, previews and SVG enhancement illustrations.
+- `apps/web/src/style.css` and `stations.css`: original visual foundation and responsive station layout.
+- `apps/web/src/useRoom.ts`: connection, private credentials and command recovery.
+- `apps/server/src/session.ts` and `index.ts`: authoritative sessions, SQLite and hosting.
+- `tests/stations.test.ts`: new-rule acceptance, conservation, privacy, complete matches and long replay.
+- `scripts/smoke-online.ts`: actual clients and process restarts with a pending blind draw.
 
-## Prototype boundaries
+## Compatibility and hosting
 
-One Node process and one SQLite volume are supported for private rooms. GitHub Pages hosts the public Practice and Pass & play build; its online-room option is disabled unless a room-server endpoint is configured. No account system, public matchmaking, rankings, telemetry or payments were added. The Automaton is a heuristic practice opponent. Hosted load testing, cross-browser/device hardware certification, Docker execution and human balance sessions remain outstanding.
+Rules version 0.3.0 and save format 3 reject older imports clearly. A new browser key preserves earlier autosaves. Complete private backups replay before replacing local state. No fixed action-count limit invalidates a long legal match. Public reports cannot resume games.
 
-Downloads use a persistent Blob link. A visible, copyable JSON backup is provided for browser shells that intercept file downloads. Imports validate the complete replay before replacing the local table. Online exports contain public state and the journal, never credentials, seeds or unrevealed decks.
+One Node process and one SQLite volume are supported for private rooms. GitHub Pages hosts Practice and Pass & play. No accounts, matchmaking, rankings, telemetry or payments were added. The Automaton uses its own projected private information and public state. Human balance/duration, hosted load, Docker execution and physical-device accessibility/browser certification remain unclaimed.

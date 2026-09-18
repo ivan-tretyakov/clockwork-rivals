@@ -1,4 +1,4 @@
-import type { Reserve, Player } from "./index";
+import type { Reserve, Player } from "./legacy-v2";
 export const OBJECTIVES = {
   "steam-reserve": {
     title: "Steam Reserve",

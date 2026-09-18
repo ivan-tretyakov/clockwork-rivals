@@ -1,6 +1,23 @@
 # Clockwork Rivals validation
 
-## Current iteration: rules 0.2.0
+## Current iteration: rules 0.3.0
+
+Checked locally on 18 September 2026. This is the three-station redesign described in [ITERATION-03.md](docs/clockwork-rivals/ITERATION-03.md). Living Frontier remains unchanged. Earlier evidence below is historical.
+
+- `npm test`: **79 tests passed across seven files**, including preserved historical regressions. Current rules cover the complete catalogue, private setup, acquisition and forced hand discard, paid installation/replacement, full-input-before-refund production, generated versus retained output, caps and conditional objective attribution, persistent station switches, preview agreement, atomic mixed delivery, market aging/recycling/card conservation, all six objectives and final scoring. Coverage includes the worked eight-round investment trace, twelve complete bot matches, a legal replay beyond 1,000 actions, and a native Node HMAC comparison for persisted private counters including 32-bit rollover.
+- `npm run build` and `npm run build:pages`: strict TypeScript, browser bundles and Node server pass. `python scripts/validate_package.py` passes all 37 manifest assets and original package checks. `git diff --check` passes.
+- `npm run test:online`: two real clients verify private views, invite/seat binding, duplicate/stale commands, disconnect pause and reconnect. Two actual server process restarts retain objective selection and a pending blind draw with the same owner-only offers. A complete match finishes in the observed run at round 12 after 152 accepted moves, followed by mutual rematch and concession.
+- Desktop and 390×844 screenshots were inspected for objective choice, the six-part market, private acquisition, the three-station board, paid installation previews and slot replacement, station switches, delivery shortages/payment, and final scores. Existing machine artwork and all nine new enhancement illustrations render. A mobile installation-dialog overflow was corrected and rechecked.
+- The installation preview deducted its price before simulating; cancel preserved the hand and resources; confirm installed and paid exactly once. A full enhancement station allowed explicit slot replacement. An unaffordable core remained disabled. Full-hand acquisition required a discard, including the option to discard the newly acquired card.
+- One production click ran enabled stations in order and advanced to Delivery. Disabling Fabrication visibly preserved work in the preview; switches survived reload. A mixed Factory Automata payment spent exactly three work and one gear for three prestige; cancel preserved the reserves.
+- A complete Practice match was played through actual UI controls and finished in round nine: Copper 21 public + 3 objective = 24, Teal 14 + 0 = 14. No phase blockage occurred. This playthrough preceded the final private-shuffle hardening; the final build separately passed the full automated/online suites and a fresh browser objective/blind-draw reload check.
+- Private hotseat handoff removed hand, acquisition and objective panels from the DOM. A public export omitted private hands, blind offers, objective setup/progress, private entropy and discard identities. Final results revealed selected goals and separated public score, bonus and total.
+- On the final Pages build, Assembly Press and Gear Cutter remained the same pending blind offers after reload. Invalid new-game values displayed an explanation and disabled Start. The checked browser states had no broken images, horizontal page overflow or console errors/warnings. Private QA fixtures remain ignored in `.local`.
+- Rules 0.3 use save format 3 and a separate autosave key. Earlier saves receive explicit incompatibility handling and remain preserved; old games are not silently reinterpreted.
+
+These checks establish implementation consistency and the inspected flows. They do not establish human balance, the target 8–10 rounds or 20–30 minute duration, physical-device coverage, hosted multiplayer load or formal accessibility compliance. The next human test protocol is [PLAYTEST.md](docs/clockwork-rivals/PLAYTEST.md).
+
+## Historical validation: rules 0.2.0
 
 Checked locally on 17 September 2026. Living Frontier remains unimplemented and unchanged. The earlier evidence below is retained as historical coverage, not a claim that old saves or the four-activation rule remain compatible.
 

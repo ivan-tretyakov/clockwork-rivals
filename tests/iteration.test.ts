@@ -11,7 +11,7 @@ import {
   type Card,
   type Action,
   type Seat,
-} from "../packages/clockwork-rules/src/index";
+} from "../packages/clockwork-rules/src/legacy-v2";
 const fresh = () =>
   setup({
     seed: 1847,

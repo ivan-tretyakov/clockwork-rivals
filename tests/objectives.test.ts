@@ -17,7 +17,7 @@ import {
   type Seat,
   type Card,
   type PrivateSetup,
-} from "../packages/clockwork-rules/src/index";
+} from "../packages/clockwork-rules/src/legacy-v2";
 import { Session } from "../apps/server/src/session";
 import oldSave from "./fixtures/round-three.json";
 const hidden: PrivateSetup = {
@@ -302,10 +302,10 @@ describe("Private objectives", () => {
     room.join("P1");
     const s = room.data.state,
       actor = s.activePlayer!,
-      objective = s.privateSetup.offers[actor][0];
+      objective = s.offers[actor][0];
     const cmd = {
       matchId: room.data.matchId,
-      rulesVersion: VERSION,
+      rulesVersion: s.rulesVersion,
       expectedRevision: 0,
       commandId: "choose-private",
       action: { type: "choose-objective" as const, objective },

@@ -1,3 +1,13 @@
+import {
+  OBJECTIVES,
+  emptyMetrics,
+  objectiveProgress,
+  type ObjectiveId,
+  type ObjectiveMetrics,
+} from "./legacy-objectives-v2";
+export { OBJECTIVES, objectiveProgress };
+import type { PlaytestConfig } from "../../../contracts/legacy-v2";
+export type { PlaytestConfig };
 import catalogue from "../../../data/clockwork-rivals.json";
 import type {
   ClockworkAction,
@@ -9,7 +19,7 @@ import type {
   RuleError,
 } from "../../../contracts/legacy-v2";
 export type { ClockworkAction as Action, PlayerId as Seat, Resource };
-export const VERSION = catalogue.rulesVersion;
+export const VERSION = "0.2.0";
 export const RESOURCES: Resource[] = ["coal", "steam", "work", "gears"];
 export const PHASES = ["draft", "power", "run", "deliver"] as const;
 export type Phase = (typeof PHASES)[number];
@@ -37,14 +47,72 @@ export interface PartDefinition {
 export const PARTS = Object.fromEntries(
   catalogue.parts.map((p) => [p.id, p]),
 ) as Record<string, PartDefinition>;
-export const ORDERS = Object.fromEntries(
-  catalogue.commissions.map((c) => [c.id, c]),
-);
+export interface CommissionDefinition {
+  id: string;
+  name: string;
+  copies: number;
+  cost: Amounts;
+  prestige: number;
+  art: string;
+}
+export const ORDERS: Record<string, CommissionDefinition> = Object.fromEntries([
+  ...catalogue.commissions.map(
+    (c) =>
+      [
+        c.id,
+        {
+          id: c.id,
+          name: c.name,
+          copies: c.copies,
+          cost: { gears: c.gearCost },
+          prestige: c.prestige,
+          art: c.art,
+        },
+      ] as const,
+  ),
+  [
+    "steamworks",
+    {
+      id: "steamworks",
+      name: "Steamworks",
+      copies: 3,
+      cost: { steam: 3, gears: 1 },
+      prestige: 3,
+      art: "assets/ui/steam.svg",
+    },
+  ],
+  [
+    "automated-foundry",
+    {
+      id: "automated-foundry",
+      name: "Automated Foundry",
+      copies: 3,
+      cost: { work: 2, gears: 1 },
+      prestige: 3,
+      art: "assets/ui/work.svg",
+    },
+  ],
+]);
+export const canAfford = (resources: Reserve, cost: Amounts) =>
+  RESOURCES.every((r) => resources[r] >= (cost[r] ?? 0));
+export const missingCost = (resources: Reserve, cost: Amounts): Amounts =>
+  Object.fromEntries(
+    RESOURCES.filter((r) => resources[r] < (cost[r] ?? 0)).map((r) => [
+      r,
+      (cost[r] ?? 0) - resources[r],
+    ]),
+  );
+export const costText = (amounts: Amounts) =>
+  RESOURCES.filter((r) => amounts[r])
+    .map(
+      (r) => `${amounts[r]} ${r === "gears" && amounts[r] === 1 ? "gear" : r}`,
+    )
+    .join(" + ");
 export const LIMITS = catalogue.limits;
 export const ALLOWANCE: Record<Phase, number> = {
   draft: LIMITS.draftActions,
   power: LIMITS.powerActions,
-  run: LIMITS.runActions,
+  run: 1,
   deliver: LIMITS.deliverActions,
 };
 export interface Card {
@@ -57,7 +125,12 @@ export interface Commission {
   id: string;
   definitionId: string;
 }
+export interface PlanEntry {
+  instance: string;
+  enabled: boolean;
+}
 export interface Player {
+  productionOrder: PlanEntry[];
   resources: Reserve;
   prestige: number;
   grid: (Card | null)[];
@@ -73,7 +146,71 @@ export interface Event {
   phase: Phase;
   revision: number;
 }
+export const DEFAULT_CONFIG: PlaytestConfig = {
+  objectives: "choice",
+  commissions: "mixed",
+  objectiveBonus: 2,
+  targetPrestige: 10,
+  maxRounds: 8,
+  sharedCoal: 3,
+};
+export interface PrivateSetup {
+  offers: Record<PlayerId, ObjectiveId[]>;
+}
+export function privateDeal(mode: PlaytestConfig["objectives"]): PrivateSetup {
+  const ids = Object.keys(OBJECTIVES) as ObjectiveId[];
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  const n = mode === "choice" ? 2 : mode === "random" ? 1 : 0;
+  return { offers: { P0: ids.slice(0, n), P1: ids.slice(n, n * 2) } };
+}
+export function gameConfig(
+  input: Partial<PlaytestConfig> = {},
+): PlaytestConfig {
+  const c = { ...DEFAULT_CONFIG, ...input };
+  if (
+    !["choice", "random", "off"].includes(c.objectives) ||
+    !["classic", "mixed"].includes(c.commissions) ||
+    !Number.isInteger(c.objectiveBonus) ||
+    c.objectiveBonus < 0 ||
+    c.objectiveBonus > 5 ||
+    !Number.isInteger(c.targetPrestige) ||
+    c.targetPrestige < 6 ||
+    c.targetPrestige > 20 ||
+    !Number.isInteger(c.maxRounds) ||
+    c.maxRounds < 4 ||
+    c.maxRounds > 12 ||
+    !Number.isInteger(c.sharedCoal) ||
+    c.sharedCoal < 1 ||
+    c.sharedCoal > 6
+  )
+    throw new Error("Invalid playtest configuration.");
+  return c;
+}
+export interface ObjectiveView {
+  offers: ObjectiveId[];
+  selected: ObjectiveId | null;
+  progress: { complete: boolean; text: string } | null;
+}
+export interface ObjectiveReveal {
+  selected: ObjectiveId | null;
+  complete: boolean;
+  progress: string;
+  bonus: number;
+}
 export interface State {
+  config: PlaytestConfig;
+  setupComplete: boolean;
+  privateSetup: PrivateSetup;
+  objectivesPrivate: Record<
+    PlayerId,
+    { selected: ObjectiveId | null; metrics: ObjectiveMetrics }
+  >;
+  objectiveReady: Record<PlayerId, boolean>;
+  revealedObjectives: Record<PlayerId, ObjectiveReveal> | null;
+  finalScores: Record<PlayerId, number> | null;
   game: "clockwork-rivals";
   rulesVersion: string;
   revision: number;
@@ -98,15 +235,26 @@ export interface State {
 }
 export type PublicState = Omit<
   State,
-  "seed" | "initialInitiative" | "partDeck" | "orderDeck"
-> & { partDeckCount: number; orderDeckCount: number };
+  | "seed"
+  | "initialInitiative"
+  | "partDeck"
+  | "orderDeck"
+  | "privateSetup"
+  | "objectivesPrivate"
+> & {
+  partDeckCount: number;
+  orderDeckCount: number;
+  objective?: ObjectiveView;
+};
 export type View = State | PublicState;
 export interface AcceptedAction {
   actor: PlayerId;
   action: ClockworkAction;
 }
 export interface Save {
-  formatVersion: 1;
+  formatVersion: 2;
+  privateSetup: PrivateSetup;
+  config: PlaytestConfig;
   rulesVersion: string;
   catalogueHash: string;
   seed: number;
@@ -166,10 +314,28 @@ function hash(text: string) {
   for (const c of text) n = Math.imul(n ^ c.charCodeAt(0), 16777619);
   return (n >>> 0).toString(16);
 }
-export const CATALOGUE_HASH = hash(canonical(catalogue));
-export function setup(options: SetupOptions): State {
+export const CATALOGUE_HASH = hash(
+  canonical({ catalogue, ORDERS, OBJECTIVES, VERSION }),
+);
+export function setup(
+  options: SetupOptions & { privateSetup?: PrivateSetup },
+): State {
   if (options.rulesVersion !== VERSION || !Number.isFinite(options.seed))
     throw new Error("Unsupported rules version or seed.");
+  const config = gameConfig(options.config);
+  const hidden = structuredClone(
+    options.privateSetup ?? privateDeal(config.objectives),
+  );
+  const count =
+    config.objectives === "choice" ? 2 : config.objectives === "random" ? 1 : 0;
+  const candidates = [...hidden.offers.P0, ...hidden.offers.P1];
+  if (
+    hidden.offers.P0.length !== count ||
+    hidden.offers.P1.length !== count ||
+    new Set(candidates).size !== candidates.length ||
+    candidates.some((id) => !OBJECTIVES[id])
+  )
+    throw new Error("Invalid private objective deal.");
   const random = rng(options.seed);
   const rolled: PlayerId = random() < 0.5 ? "P0" : "P1";
   const initiative = options.initiativeOverride ?? rolled;
@@ -183,6 +349,12 @@ export function setup(options: SetupOptions): State {
         boosted: false,
       };
     return {
+      productionOrder: grid
+        .filter(
+          (c): c is Card =>
+            !!c && PARTS[c.definitionId].effect.kind === "convert",
+        )
+        .map((c) => ({ instance: c.id, enabled: true })),
       grid,
       resources: { ...catalogue.setup.startingResources },
       prestige: 0,
@@ -202,15 +374,40 @@ export function setup(options: SetupOptions): State {
     random,
   );
   const orderDeck = shuffle(
-    catalogue.commissions.flatMap((c) =>
-      Array.from({ length: c.copies }, (_, i) => ({
-        id: `order-${c.id}-${i}`,
-        definitionId: c.id,
-      })),
-    ),
+    Object.values(ORDERS)
+      .filter(
+        (c) =>
+          config.commissions === "mixed" ||
+          catalogue.commissions.some((original) => original.id === c.id),
+      )
+      .flatMap((c) =>
+        Array.from({ length: c.copies }, (_, i) => ({
+          id: `order-${c.id}-${i}`,
+          definitionId: c.id,
+        })),
+      ),
     random,
   );
   return {
+    config,
+    privateSetup: hidden,
+    objectivesPrivate: {
+      P0: {
+        selected: config.objectives === "random" ? hidden.offers.P0[0] : null,
+        metrics: emptyMetrics(),
+      },
+      P1: {
+        selected: config.objectives === "random" ? hidden.offers.P1[0] : null,
+        metrics: emptyMetrics(),
+      },
+    },
+    setupComplete: config.objectives !== "choice",
+    objectiveReady: {
+      P0: config.objectives !== "choice",
+      P1: config.objectives !== "choice",
+    },
+    revealedObjectives: null,
+    finalScores: null,
     game: "clockwork-rivals",
     rulesVersion: VERSION,
     revision: 0,
@@ -223,7 +420,7 @@ export function setup(options: SetupOptions): State {
     status: "active",
     winner: null,
     players: { P0: player("P0"), P1: player("P1") },
-    sharedCoal: catalogue.setup.sharedCoalPerRound,
+    sharedCoal: config.sharedCoal,
     counts: { P0: 0, P1: 0 },
     passed: { P0: false, P1: false },
     market: partDeck.splice(0, catalogue.setup.marketSize),
@@ -302,19 +499,126 @@ export interface ProductionStep {
   slot: number;
   effect: Preview;
 }
-// Resolve the first affordable unused machine in grid order, then scan again.
-// This revisits consumers that were waiting for output from a later producer.
-// Exhaustion bounds the sequence to nine machines, including recycling loops.
-export function productionPlan(state: View, actor: PlayerId) {
+export function normalizedPlan(state: View, actor: PlayerId): PlanEntry[] {
+  const machines = state.players[actor].grid.filter(
+    (c): c is Card => !!c && PARTS[c.definitionId].effect.kind === "convert",
+  );
+  const plan = (state.players[actor].productionOrder ?? []).filter((e) =>
+    machines.some((c) => c.id === e.instance),
+  );
+  return [
+    ...plan,
+    ...machines
+      .filter((c) => !plan.some((e) => e.instance === c.id))
+      .map((c) => ({ instance: c.id, enabled: true })),
+  ];
+}
+export function validPlan(
+  state: View,
+  actor: PlayerId,
+  plan: unknown,
+): plan is PlanEntry[] {
+  const expected = normalizedPlan(state, actor);
+  return (
+    Array.isArray(plan) &&
+    plan.length === expected.length &&
+    new Set(plan.map((e) => e?.instance)).size === plan.length &&
+    plan.every(
+      (e) =>
+        e &&
+        typeof e.enabled === "boolean" &&
+        Object.keys(e).length === 2 &&
+        expected.some((c) => c.instance === e.instance),
+    )
+  );
+}
+export function adjacencyInfo(state: View, actor: PlayerId, instance: string) {
+  const grid = state.players[actor].grid;
+  const index = grid.findIndex((c) => c?.id === instance);
+  const card = grid[index];
+  if (!card) return { targets: [] as number[], text: "No machine" };
+  const effect = PARTS[card.definitionId].effect;
+  const target =
+    card.definitionId === "condenser"
+      ? "boiler"
+      : card.definitionId === "boiler"
+        ? "condenser"
+        : effect.adjacencyBonus?.friendlyDefinition;
+  const targets = target
+    ? neighbors(index).filter((n) => grid[n]?.definitionId === target)
+    : [];
+  return {
+    targets,
+    text: target
+      ? targets.length
+        ? `Bonus active · adjacent ${PARTS[target].name}${targets.length > 1 ? "s" : ""}`
+        : `Bonus inactive · needs an adjacent ${PARTS[target].name}`
+      : card.definitionId === "priority-valve"
+        ? "Power bonus · no adjacency needed"
+        : "No adjacency requirement · resources are shared across your workshop",
+  };
+}
+export function installationPreview(
+  state: View,
+  actor: PlayerId,
+  marketInstance: string,
+  target: number,
+) {
+  const card = state.market.find((c) => c.id === marketInstance);
+  if (
+    !card ||
+    target < 0 ||
+    target > 8 ||
+    !Number.isInteger(target) ||
+    (state.players[actor].grid[target] &&
+      !state.players[actor].grid.every(Boolean))
+  )
+    return null;
+  const next = structuredClone(state);
+  next.players[actor].grid[target] = structuredClone(card);
+  next.players[actor].productionOrder = normalizedPlan(next, actor);
+  const linked = adjacencyInfo(next, actor, card.id);
+  const affected = next.players[actor].grid
+    .filter((c): c is Card => !!c)
+    .filter(
+      (c) =>
+        c.id === card.id ||
+        canonical(adjacencyInfo(state, actor, c.id)) !==
+          canonical(adjacencyInfo(next, actor, c.id)),
+    )
+    .map((c) => ({
+      name: PARTS[c.definitionId].name,
+      ...adjacencyInfo(next, actor, c.id),
+    }));
+  return {
+    before: productionPlan(state, actor),
+    after: productionPlan(next, actor),
+    grid: next.players[actor].grid,
+    linked: linked.targets,
+    affected,
+  };
+}
+// The same pure resolver drives the preview and authoritative production.
+export function productionPlan(
+  state: View,
+  actor: PlayerId,
+  plan = normalizedPlan(state, actor),
+) {
   const working = structuredClone(state);
   const player = working.players[actor];
   const steps: ProductionStep[] = [];
   while (true) {
-    const index = player.grid.findIndex(
-      (card) =>
-        card && !card.exhausted && preview(working, actor, card.id)?.affordable,
-    );
-    if (index < 0) break;
+    const next = plan.find((entry) => {
+      const card = player.grid.find((c) => c?.id === entry.instance);
+      return (
+        entry.enabled &&
+        card &&
+        !card.exhausted &&
+        preview(working, actor, card.id)?.affordable
+      );
+    });
+    if (!next) break;
+    const index = player.grid.findIndex((c) => c?.id === next.instance);
     const card = player.grid[index]!;
     const effect = preview(working, actor, card.id)!;
     steps.push({
@@ -328,19 +632,36 @@ export function productionPlan(state: View, actor: PlayerId) {
     if (effect.condenser !== null)
       player.grid[effect.condenser]!.boosted = true;
   }
-  return {
-    steps,
-    after: player.resources,
-    skipped: player.grid.filter(
-      (card): card is Card =>
-        !!card &&
-        !card.exhausted &&
-        PARTS[card.definitionId].effect.kind === "convert",
-    ),
-  };
+  const skipped = plan
+    .filter((e) => !steps.some((step) => step.instance === e.instance))
+    .map((entry) => {
+      const card = player.grid.find((c) => c?.id === entry.instance)!;
+      const effect = preview(working, actor, card.id)!;
+      const missing = RESOURCES.filter(
+        (r) => player.resources[r] < (effect.input[r] ?? 0),
+      )
+        .map((r) => `${(effect.input[r] ?? 0) - player.resources[r]} ${r}`)
+        .join(", ");
+      return {
+        ...card,
+        reason: !entry.enabled
+          ? "Disabled by your plan"
+          : card.exhausted
+            ? "Already used this round"
+            : `Needs ${missing}`,
+      };
+    });
+  return { steps, after: player.resources, grid: player.grid, skipped };
 }
 export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
   if (state.status !== "active" || state.activePlayer !== actor) return [];
+  if (!state.setupComplete) {
+    const offers =
+      "privateSetup" in state
+        ? state.privateSetup.offers[actor]
+        : (state.objective?.offers ?? []);
+    return offers.map((objective) => ({ type: "choose-objective", objective }));
+  }
   const p = state.players[actor];
   const actions: ClockworkAction[] = [];
   const full = p.grid.every(Boolean);
@@ -373,13 +694,9 @@ export function legalActions(state: View, actor: PlayerId): ClockworkAction[] {
       actions.push({ type: "take-coal", useValve: true });
   } else if (state.phase === "run") {
     actions.push({ type: "produce" });
-    // Retained for exact replay of existing saves; the table uses Produce all.
-    for (const c of p.grid)
-      if (c && !c.exhausted && preview(state, actor, c.id)?.affordable)
-        actions.push({ type: "activate", instance: c.id });
   } else if (state.phase === "deliver") {
     for (const c of state.orders)
-      if (p.resources.gears >= ORDERS[c.definitionId].gearCost)
+      if (canAfford(p.resources, ORDERS[c.definitionId].cost))
         actions.push({ type: "deliver", commission: c.id });
   }
   actions.push({ type: "pass" });
@@ -403,6 +720,12 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     return fail("WRONG_TURN", "It is your rival’s turn.");
   if (
     action.type !== "concede" &&
+    !(
+      action.type === "set-plan" &&
+      state.setupComplete &&
+      state.phase === "run" &&
+      validPlan(state, actor, action.plan)
+    ) &&
     !legalActions(state, actor).some((a) => canonical(a) === canonical(action))
   ) {
     if (action.type === "activate") {
@@ -425,6 +748,10 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   const s: State = structuredClone(state);
   s.revision++;
   const p = s.players[actor];
+  if (action.type === "set-plan") {
+    p.productionOrder = structuredClone(action.plan);
+    return { ok: true as const, state: s, events: [] as Event[] };
+  }
   const events: Event[] = [];
   const event = (
     type: string,
@@ -461,30 +788,26 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
     RESOURCES.filter((r) => v[r])
       .map((r) => `${v[r]} ${r}`)
       .join(", ");
-  const activate = (instance: string) => {
-    const effect = preview(s, actor, instance)!;
-    const card = p.grid.find((c) => c?.id === instance)!;
-    for (const r of RESOURCES)
-      p.resources[r] += (effect.output[r] ?? 0) - (effect.input[r] ?? 0);
-    card.exhausted = true;
-    if (effect.condenser !== null) p.grid[effect.condenser]!.boosted = true;
-    event(
-      "activate",
-      `${names[actor]} runs ${PARTS[card.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
-      {
-        instance: card.id,
-        input: effect.input,
-        output: effect.output,
-        adjacent: effect.adjacent,
-      },
-      actor,
-    );
-    clamp();
-  };
   switch (action.type) {
+    case "choose-objective": {
+      s.objectivesPrivate[actor].selected = action.objective as ObjectiveId;
+      s.objectiveReady[actor] = true;
+      s.setupComplete = s.objectiveReady.P0 && s.objectiveReady.P1;
+      s.activePlayer = s.setupComplete ? s.initialInitiative : other(actor);
+      event(
+        "objective-ready",
+        `${names[actor]} locks a private objective.`,
+        {},
+        actor,
+      );
+      if (s.setupComplete)
+        event("setup", "Both objectives are locked. Round one begins.");
+      return { ok: true as const, state: s, events };
+    }
     case "concede":
       s.status = "finished";
       s.winner = other(actor);
+      scoreObjectives(s, true);
       s.activePlayer = null;
       event(
         "concede",
@@ -499,6 +822,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const target = position(action.slot);
       if (p.grid[target]) s.discarded.push(p.grid[target]!);
       p.grid[target] = card;
+      p.productionOrder = normalizedPlan(s, actor);
       if (s.partDeck.length) s.market.splice(i, 0, s.partDeck.shift()!);
       event(
         "draft",
@@ -528,6 +852,8 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const amount = action.useValve ? 2 : 1;
       s.sharedCoal -= amount;
       p.resources.coal += amount;
+      s.objectivesPrivate[actor].metrics.coalByRound[s.round] =
+        (s.objectivesPrivate[actor].metrics.coalByRound[s.round] ?? 0) + amount;
       if (action.useValve) p.valveUsed = true;
       event(
         "coal",
@@ -538,14 +864,50 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       clamp();
       break;
     }
-    case "activate": {
-      activate(action.instance);
-      break;
-    }
     case "produce": {
       const plan = productionPlan(s, actor);
       const before = { ...p.resources };
-      for (const step of plan.steps) activate(step.instance);
+      for (const step of plan.steps) {
+        const effect = step.effect;
+        const metrics = s.objectivesPrivate[actor].metrics;
+        if (!metrics.activatedTypes.includes(step.definitionId))
+          metrics.activatedTypes.push(step.definitionId);
+        for (const r of RESOURCES)
+          metrics.produced[r] += Math.max(
+            0,
+            (effect.output[r] ?? 0) - (effect.overflow[r] ?? 0),
+          );
+        event(
+          "activate",
+          `${names[actor]} runs ${PARTS[step.definitionId].name}: ${amounts(effect.input)} → ${amounts(effect.output)}${effect.adjacent.length ? " (adjacency bonus)" : ""}.`,
+          {
+            instance: step.instance,
+            input: effect.input,
+            output: effect.output,
+            adjacent: effect.adjacent,
+          },
+          actor,
+        );
+        for (const r of RESOURCES)
+          if (effect.overflow[r])
+            event(
+              "overflow",
+              `${names[actor]} loses ${effect.overflow[r]} ${r} above the reserve cap.`,
+              { resource: r, amount: effect.overflow[r] },
+              actor,
+            );
+      }
+      p.resources = plan.after;
+      p.grid = plan.grid;
+      const metrics = s.objectivesPrivate[actor].metrics;
+      const netGears = p.resources.gears - before.gears;
+      metrics.bestGearGain = Math.max(metrics.bestGearGain, netGears);
+      if (
+        netGears >= 2 &&
+        !metrics.coalByRound[s.round] &&
+        !metrics.independentRounds.includes(s.round)
+      )
+        metrics.independentRounds.push(s.round);
       s.passed[actor] = true;
       event(
         "produce",
@@ -564,14 +926,14 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       const i = s.orders.findIndex((c) => c.id === action.commission);
       const [card] = s.orders.splice(i, 1);
       const order = ORDERS[card.definitionId];
-      p.resources.gears -= order.gearCost;
+      for (const r of RESOURCES) p.resources[r] -= order.cost[r] ?? 0;
       p.prestige += order.prestige;
       p.delivered.push(card.definitionId);
       s.discarded.push(card);
       event(
         "deliver",
         `${names[actor]} delivers ${order.name} for ${order.prestige} prestige.`,
-        { commission: card.id, prestige: order.prestige },
+        { commission: card.id, cost: order.cost, prestige: order.prestige },
         actor,
       );
       break;
@@ -590,14 +952,16 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   ) {
     if (s.phase === "deliver") {
       if (
-        s.round >= LIMITS.maxRounds ||
-        s.players.P0.prestige >= LIMITS.targetPrestige ||
-        s.players.P1.prestige >= LIMITS.targetPrestige
+        s.round >= s.config.maxRounds ||
+        s.players.P0.prestige >= s.config.targetPrestige ||
+        s.players.P1.prestige >= s.config.targetPrestige
       ) {
+        scoreObjectives(s);
         const a = s.players.P0,
           b = s.players.P1;
         const difference =
-          a.prestige - b.prestige || a.resources.gears - b.resources.gears;
+          s.finalScores!.P0 - s.finalScores!.P1 ||
+          a.resources.gears - b.resources.gears;
         s.winner = difference > 0 ? "P0" : difference < 0 ? "P1" : "draw";
         s.status = "finished";
         s.activePlayer = null;
@@ -605,7 +969,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
           "finish",
           s.winner === "draw"
             ? "A perfect tie. Both workshops share the honors."
-            : `${names[s.winner]} wins with ${s.players[s.winner].prestige} prestige.`,
+            : `${names[s.winner]} wins with ${s.finalScores![s.winner]} final prestige (including private objectives).`,
           { winner: s.winner },
         );
         return { ok: true as const, state: s, events };
@@ -617,7 +981,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
         s.orders.push(s.orderDeck.shift()!);
       s.round++;
       s.initiative = other(s.initiative);
-      s.sharedCoal = catalogue.setup.sharedCoalPerRound;
+      s.sharedCoal = s.config.sharedCoal;
       for (const seat of ["P0", "P1"] as const) {
         s.players[seat].valveUsed = false;
         for (const c of s.players[seat].grid)
@@ -629,7 +993,7 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
       s.phase = "draft";
       event(
         "round",
-        `Round ${s.round}. ${names[s.initiative]} has initiative. Coal refilled to 3.`,
+        `Round ${s.round}. ${names[s.initiative]} has initiative. Coal refilled to ${s.config.sharedCoal}.`,
       );
     } else s.phase = PHASES[PHASES.indexOf(s.phase) + 1];
     s.counts = { P0: 0, P1: 0 };
@@ -642,29 +1006,81 @@ export function reduce(state: State, actor: PlayerId, action: ClockworkAction) {
   } else s.activePlayer = done(other(actor)) ? actor : other(actor);
   return { ok: true as const, state: s, events };
 }
-export function project(s: State): PublicState {
+export function scoreObjectives(s: State, concession = false) {
+  const reveal = {} as Record<PlayerId, ObjectiveReveal>;
+  const scores = {} as Record<PlayerId, number>;
+  for (const seat of ["P0", "P1"] as const) {
+    const own = s.objectivesPrivate[seat];
+    const progress = own.selected
+      ? objectiveProgress(own.selected, own.metrics, s.players[seat])
+      : { complete: false, text: "No objective" };
+    const bonus =
+      !concession && progress.complete ? s.config.objectiveBonus : 0;
+    reveal[seat] = {
+      selected: own.selected,
+      complete: progress.complete,
+      progress: progress.text,
+      bonus,
+    };
+    scores[seat] = s.players[seat].prestige + bonus;
+  }
+  s.revealedObjectives = reveal;
+  s.finalScores = scores;
+}
+export function project(
+  s: State,
+  viewer: PlayerId | "spectator" = "spectator",
+): PublicState {
   const {
     seed: _seed,
     initialInitiative: _initiative,
     partDeck,
     orderDeck,
+    privateSetup,
+    objectivesPrivate,
     ...rest
   } = s;
+  const own = viewer === "spectator" ? null : objectivesPrivate[viewer];
   return structuredClone({
     ...rest,
     partDeckCount: partDeck.length,
     orderDeckCount: orderDeck.length,
+    ...(own && viewer !== "spectator" && s.status !== "finished"
+      ? {
+          objective: {
+            offers: own.selected ? [] : privateSetup.offers[viewer],
+            selected: own.selected,
+            progress: own.selected
+              ? objectiveProgress(own.selected, own.metrics, s.players[viewer])
+              : null,
+          },
+        }
+      : {}),
   });
+}
+export function publicReport(s: State | PublicState) {
+  const view =
+    "privateSetup" in s ? project(s) : (({ objective: _, ...rest }) => rest)(s);
+  return {
+    kind: "clockwork-public-report",
+    rulesVersion: VERSION,
+    state: view,
+    note: "Public report only. Private cards, offers, objective choices and private metrics are excluded. Local play resumes from this browser's autosave.",
+  };
 }
 export function replay(
   seed: number,
   initialInitiative: PlayerId,
   actions: AcceptedAction[],
+  privateSetup?: PrivateSetup,
+  config?: Partial<PlaytestConfig>,
 ): State {
   let state = setup({
     seed,
     rulesVersion: VERSION,
     initiativeOverride: initialInitiative,
+    privateSetup,
+    config,
   });
   for (const { actor, action } of actions) {
     const result = reduce(state, actor, action);
@@ -678,7 +1094,9 @@ export function replay(
 }
 export function saveGame(state: State, actions: AcceptedAction[]): Save {
   return {
-    formatVersion: 1,
+    formatVersion: 2,
+    privateSetup: state.privateSetup,
+    config: state.config,
     rulesVersion: VERSION,
     catalogueHash: CATALOGUE_HASH,
     seed: state.seed,
@@ -689,15 +1107,25 @@ export function saveGame(state: State, actions: AcceptedAction[]): Save {
 }
 export function loadGame(raw: string): Save {
   const save = JSON.parse(raw) as Save;
+  if (save.rulesVersion !== VERSION)
+    throw new Error(
+      `This save uses rules ${save.rulesVersion ?? "unknown"}. Version ${VERSION} adds production plans and private objectives. Keep your old backup and start a new match.`,
+    );
   if (
-    save.formatVersion !== 1 ||
+    save.formatVersion !== 2 ||
     save.rulesVersion !== VERSION ||
     save.catalogueHash !== CATALOGUE_HASH ||
     !Array.isArray(save.actions) ||
     save.actions.length > 1000
   )
     throw new Error("This save uses an unsupported rules catalogue or format.");
-  const state = replay(save.seed, save.initialInitiative, save.actions);
+  const state = replay(
+    save.seed,
+    save.initialInitiative,
+    save.actions,
+    save.privateSetup,
+    save.config,
+  );
   if (canonical(state) !== canonical(save.state))
     throw new Error(
       "Save validation failed. The snapshot does not match its replay.",
@@ -705,19 +1133,78 @@ export function loadGame(raw: string): Save {
   return { ...save, state };
 }
 export function chooseBotAction(s: View): ClockworkAction {
+  if ("privateSetup" in s) s = project(s, s.activePlayer!);
   const seat = s.activePlayer!;
   const p = s.players[seat];
+  const goal = "objective" in s ? s.objective?.selected : null;
+  if (s.setupComplete && s.phase === "run") {
+    const priority = [
+      "precision-press",
+      "flywheel",
+      "piston",
+      "press",
+      "boiler",
+      "hand-crank",
+      "turbine",
+      "recycler",
+    ];
+    const plan = normalizedPlan(s, seat)
+      .map((entry) => {
+        const id = p.grid.find((c) => c?.id === entry.instance)!.definitionId;
+        let enabled = true;
+        if (id === "recycler")
+          enabled =
+            goal === "versatile-workshop" ||
+            (p.resources.coal === 0 && p.resources.gears >= 3);
+        if (
+          s.round >= 3 &&
+          goal === "steam-reserve" &&
+          ["piston", "flywheel", "turbine"].includes(id)
+        )
+          enabled = false;
+        if (
+          s.round >= 3 &&
+          goal === "work-reserve" &&
+          ["press", "precision-press"].includes(id)
+        )
+          enabled = false;
+        return { ...entry, enabled };
+      })
+      .sort(
+        (a, b) =>
+          priority.indexOf(
+            p.grid.find((c) => c?.id === a.instance)!.definitionId,
+          ) -
+          priority.indexOf(
+            p.grid.find((c) => c?.id === b.instance)!.definitionId,
+          ),
+      );
+    if (canonical(plan) !== canonical(normalizedPlan(s, seat)))
+      return { type: "set-plan", plan };
+  }
   const actions = legalActions(s, seat);
   const value = (a: ClockworkAction) => {
+    if (a.type === "choose-objective")
+      return a.objective === "productive-shift" ? 10 : 5;
     if (a.type === "produce") return 1000;
     if (a.type === "pass") return -100;
     if (a.type === "reconfigure") return -50;
     if (a.type === "take-coal") return a.useValve ? 20 : 10;
-    if (a.type === "deliver")
+    if (a.type === "deliver") {
+      const order =
+        ORDERS[s.orders.find((c) => c.id === a.commission)!.definitionId];
       return (
-        ORDERS[s.orders.find((c) => c.id === a.commission)!.definitionId]
-          .prestige * 10
+        order.prestige * 10 +
+        (goal === "guild-portfolio" && !p.delivered.includes(order.id)
+          ? 10
+          : 0) -
+        (goal === "steam-reserve"
+          ? (order.cost.steam ?? 0) * 4
+          : goal === "work-reserve"
+            ? (order.cost.work ?? 0) * 4
+            : 0)
       );
+    }
     if (a.type === "activate") {
       const v = preview(s, seat, a.instance)!;
       const id = p.grid.find((c) => c?.id === a.instance)!.definitionId;

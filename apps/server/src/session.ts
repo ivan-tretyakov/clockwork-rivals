@@ -47,7 +47,7 @@ export class Session {
     config?: Partial<PlaytestConfig>,
   ) {
     if (saved && saved.state.rulesVersion !== VERSION)
-      throw new Error("This room uses older rules. Create a new 0.2 room.");
+      throw new Error("This room uses older rules. Create a new 0.3 room.");
     this.data = saved ?? {
       roomId,
       invite: token(),
